@@ -4,17 +4,30 @@
 #include "cps_def.h"
 
 /* structure */
+/**
+	@struct __cpsdio_device_data
+	@~English
+	@brief structure device data
+	@~Japanese
+	@brief デバイスデータ構造体
+**/
 typedef struct __cpsdio_device_data{
-	char Name[32];
-	unsigned int ProductNumber;
-	unsigned int inPortNum;
-	unsigned int outPortNum;
+	char Name[32];///< Device Name
+	unsigned int ProductNumber; ///< Product Number
+	unsigned int inPortNum;///< In port number
+	unsigned int outPortNum;///< Out port number
 }CPSDIO_DEV_DATA, *PCPSDIO_DEV_DATA;
 
-	
+/**
+	@struct __cpsdio_device_data
+	@~English
+	@brief I/O Control structure
+	@~Japanese
+	@brief I/O コントロール 構造体
+**/
 struct cpsdio_ioctl_arg{
-	unsigned int port;
-	unsigned int val;
+	unsigned int port;	///< port
+	unsigned int val;///< value
 	unsigned char str[32];
 };
 

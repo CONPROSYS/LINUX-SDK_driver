@@ -3,21 +3,43 @@
 #include <linux/sched.h>
 
 /* structure */
+/**
+	@struct __cpsssi_device_data
+	@~English
+	@brief structure device data
+	@~Japanese
+	@brief デバイスデータ構造体
+**/
 typedef struct __cpsssi_device_data{
-	char Name[32];
-	unsigned int ProductNumber;
-	unsigned int ssiChannel;
-	void* ChannelData;
+	char Name[32];///< デバイス名
+	unsigned int ProductNumber;///< 製品番号
+	unsigned int ssiChannel;///< チャネル数
+	void* ChannelData;///< チャネルデータ
 }CPSSSI_DEV_DATA, *PCPSSSI_DEV_DATA;
 
+
+/**
+	@struct __cpsssi_4p_channel_data
+	@~English
+	@brief CPS-SSI-4P channel data
+	@~Japanese
+	@brief CPS-SSI-4P チャネルデータ
+**/
 typedef struct __cpsssi_4p_channel_data{
-	unsigned short Gain_RSence;					// Gain( ( Delta-RSence )
-	unsigned char Current_Wire_Status;	// 3-Wire or 4-Wire
-	unsigned char Current_Rtd_Standard;	// PT or JPT
-	unsigned char lastStatus;						// Measure Last Status
+	unsigned short Gain_RSense;					///< Gain( ( Delta-RSense )
+	unsigned char Current_Wire_Status;	///< 3-Wire or 4-Wire
+	unsigned char Current_Rtd_Standard;	///< PT or JPT
+	unsigned char lastStatus;						///< Measure Last Status
 
 }CPSSSI_4P_CHANNEL_DATA, *PCPSSSI_4P_CHANNEL_DATA;
-	
+
+/**
+	@struct __cpsssi_device_data
+	@~English
+	@brief I/O Control structure
+	@~Japanese
+	@brief I/O コントロール 構造体
+**/
 struct cpsssi_ioctl_arg{
 	unsigned int ch;
 	unsigned long val;
@@ -40,7 +62,7 @@ struct cpsssi_ioctl_arg{
 #define SSI_4P_CHANNEL_RTD_1000	( 0x10 )
 #define SSI_4P_CHANNEL_RTD_NI_120	( 0x11 )
 
-#define SSI_4P_CHANNEL_RTD_SENCE_POINTER_CH3TOCH2	( 0x03 )
+#define SSI_4P_CHANNEL_RTD_SENSE_POINTER_CH3TOCH2	( 0x03 )
 
 #define SSI_4P_CHANNEL_RTD_WIRE_3	( 0x05 )
 #define SSI_4P_CHANNEL_RTD_WIRE_4	( 0x0D )
@@ -59,23 +81,23 @@ struct cpsssi_ioctl_arg{
 #define SSI_4P_CHANNEL_STANDARD_JP	0x02
 #define SSI_4P_CHANNEL_STANDARD_ITS_90	0x03
 
-#define SSI_4P_CHANNEL_SET_RTD( pt, sence, wire, excit, std )	\
-	( ( pt << 27 ) | ( sence << 22 ) | ( wire << 18 ) | (excit << 14) | (std << 12 ) )
+#define SSI_4P_CHANNEL_SET_RTD( pt, sense, wire, excit, std )	\
+	( ( pt << 27 ) | ( sense << 22 ) | ( wire << 18 ) | (excit << 14) | (std << 12 ) )
 
 #define SSI_4P_CHANNEL_GET_RTD_PT( rtd )	( (rtd & 0xF8000000)  >> 27 )
-#define SSI_4P_CHANNEL_GET_RTD_SENCE_POINTER( rtd )	( ( rtd & 0x07C00000 ) >> 22 )
+#define SSI_4P_CHANNEL_GET_RTD_SENSE_POINTER( rtd )	( ( rtd & 0x07C00000 ) >> 22 )
 #define SSI_4P_CHANNEL_GET_RTD_WIRE_MODE( rtd )	( ( rtd & 0x003C0000 ) >> 18 )
 #define SSI_4P_CHANNEL_GET_RTD_EXCITATION_CURRENT( rtd )	( ( rtd & 0x0003C000 ) >> 14 )
 #define SSI_4P_CHANNEL_GET_RTD_STANDARD( rtd )	( ( rtd & 0x00003000 ) >> 12 )
 
-#define SSI_4P_SENCE	( 0x1D )
+#define SSI_4P_SENSE	( 0x1D )
 
-#define SSI_4P_CHANNEL_SET_SENCE( val ) 	\
-	( ( SSI_4P_SENCE << 27 ) | ( val & 0x07FFFFFF ) )
+#define SSI_4P_CHANNEL_SET_SENSE( val ) 	\
+	( ( SSI_4P_SENSE << 27 ) | ( val & 0x07FFFFFF ) )
 
-#define SSI_4P_CHANNEL_GET_SENCE( val )	( val & 0x07FFFFFF )
+#define SSI_4P_CHANNEL_GET_SENSE( val )	( val & 0x07FFFFFF )
 
-#define SSI_4P_SENCE_DEFAULT_VALUE	( 2000.0 )
+#define SSI_4P_SENSE_DEFAULT_VALUE	( 2000.0 )
 
 
 /* Driver's Code */
@@ -87,7 +109,7 @@ struct cpsssi_ioctl_arg{
 
 #define IOCTL_CPSSSI_INDATA	_IOR(CPSSSI_MAGIC, 3, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_INSTATUS	_IOR(CPSSSI_MAGIC, 4, struct cpsssi_ioctl_arg)
-#define IOCTL_CPSSSI_SET_SENCE_RESISTANCE	_IOW(CPSSSI_MAGIC, 5, struct cpsssi_ioctl_arg)
+#define IOCTL_CPSSSI_SET_SENSE_RESISTANCE	_IOW(CPSSSI_MAGIC, 5, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_SET_CHANNEL	_IOW(CPSSSI_MAGIC, 6, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_START	_IOW(CPSSSI_MAGIC, 7, struct cpsssi_ioctl_arg)
 //#define IOCTL_CPSSSI_STOP	_IOW(CPSSSI_MAGIC, 8)
@@ -97,6 +119,6 @@ struct cpsssi_ioctl_arg{
 #define IOCTL_CPSSSI_SET_OFFSET	_IOW(CPSSSI_MAGIC, 12, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_GET_OFFSET	_IOR(CPSSSI_MAGIC, 13, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_GET_CHANNEL	_IOR(CPSSSI_MAGIC, 14, struct cpsssi_ioctl_arg)
-#define IOCTL_CPSSSI_GET_SENCE_RESISTANCE	_IOR(CPSSSI_MAGIC, 15, struct cpsssi_ioctl_arg)
+#define IOCTL_CPSSSI_GET_SENSE_RESISTANCE	_IOR(CPSSSI_MAGIC, 15, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_STARTBUSYSTATUS	_IOR(CPSSSI_MAGIC, 16, struct cpsssi_ioctl_arg)
 /**************************************************/

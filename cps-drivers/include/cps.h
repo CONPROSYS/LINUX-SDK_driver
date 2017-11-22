@@ -17,6 +17,7 @@ typedef struct __cps_device_id{
 #define CPS_CHILD_UNIT_INF_MC341B_00	0x01	///< 3G UNIT (SL8084T)
 #define CPS_CHILD_UNIT_INF_MC341B_10	0x02	///< RS-422A/485 UNIT
 #define CPS_CHILD_UNIT_INF_MC341B_20	0x03 ///< 920MHz UNIT ( CMM-920GP2 )
+#define CPS_CHILD_UNIT_INF_MC341B_40 0x04 ///< 3G UNIT (HL8548)
 #define CPS_CHILD_UNIT_JIG_MC341B_00	0x100 ///< KENSA UNIT
 
 /* Controller Address */
@@ -91,6 +92,7 @@ typedef struct __cps_device_id{
 /* Controller RESET Values MACRO */
 #define CPS_MCS341_RESET_DEVICEPOWER		(0x80)
 #define CPS_MCS341_RESET_DEVICEALL		(0x40)
+#define CPS_MCS341_RESET_SET_LVDS_PWR	(0x20)	///< Ver.1.0.9 (1) added
 #define CPS_MCS341_RESET_SET_IDSEL_COMPLETE	(0x01)
 
 /* Controller WatchDog Timer Values MACRO */
@@ -102,6 +104,12 @@ typedef struct __cps_device_id{
 #define CPS_MCS341_LED_ST1(val)	( val & 0x02 )
 #define CPS_MCS341_LED_ST2(val)	( val & 0x04 )
 #define CPS_MCS341_LED_ERR(val)	( val & 0x08 )
+
+#define CPS_MCS341_LED_PWR_BIT	( 0x01 )
+#define CPS_MCS341_LED_ST1_BIT	( 0x02 )
+#define CPS_MCS341_LED_ST2_BIT	( 0x04 )
+#define CPS_MCS341_LED_ERR_BIT	( 0x08 )
+
 
 /* Controller INTERRUPT Values MACRO */
 #define CPS_MCS341_INTERRUPT_GROUP_SET(n,val)	( val << n )
@@ -160,5 +168,6 @@ typedef struct __cps_device_id{
 #define CPS_CONTROLLER_MCS341_RESET_POUT GPIO_TO_PIN( 3, 9 )		//GPIO 105
 #define CPS_CONTROLLER_MCS341_TICK	(HZ / 50) // 20 msec
 
+#define CPS_CONTROLLER_MCS341_FPGA_POWER_PIN	GPIO_TO_PIN(0, 16)	// GPIO INIT END 
 
 /*********************************************************/

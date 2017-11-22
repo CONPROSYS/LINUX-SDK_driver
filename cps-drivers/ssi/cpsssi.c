@@ -7,6 +7,10 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
+ * Ver 1.0.1  04,Apr,2016 Add IOCTL_CPSSSI_STARTBUSYSTATUS I/O Control Command.
+ * Ver.1.0.2  14,Apr,2016 Fixed Open and Close function.(This driver can access many Processes.)
+ * Ver.1.0.3  26,Apr,2016 Change code from "unsigned short" to "short".
+ * Ver.1.0.4  17,May,2016 Change cpsssi_4p_addsub_channeldata_offset function.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -29,7 +33,7 @@
 #include "../include/cps_ids.h"
 #include "../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.0"
+#define DRV_VERSION	"1.0.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -40,25 +44,33 @@ MODULE_VERSION(DRV_VERSION);
 #define CPSSSI_DRIVER_NAME "cpsssi"
 
 typedef struct __cpsssi_driver_file{
-	rwlock_t lock;	//</ lock
-	unsigned ref;	//</ reference count 
+	spinlock_t		lock; 				///< lock
+	unsigned ref;						///< reference count 
 
-	unsigned int node;	//</ Device Node
-	unsigned long localAddr; //</ local Address
-	unsigned char __iomem *baseAddr;//</ Memory Address
-	CPSSSI_DEV_DATA data;	//</ Device Data
+	unsigned int node;					///< Device Node
+	unsigned long localAddr; 			///< local Address
+	unsigned char __iomem *baseAddr;	///< Memory Address
+	CPSSSI_DEV_DATA data;				///< Device Data
 
 }CPSSSI_DRV_FILE,*PCPSSSI_DRV_FILE;
 
 typedef struct __cpsssi_xp_offset_software_data{
-	unsigned int node;				//</ Device Node
-	unsigned char ch;					//</ channel
-	unsigned char w3off;			//</ 3 Wire Offset
-	unsigned char w4off;			//</ 4 Wire Offset
-	struct list_head	list;		//</	list of CPSSSI_XP_OFFSET_DATA
+	unsigned int node;				///< Device Node
+	unsigned char ch;					///< channel
+	unsigned char w3off;			///< 3 Wire Offset
+	unsigned char w4off;			///< 4 Wire Offset
+	struct list_head	list;		///<	list of CPSSSI_XP_OFFSET_DATA
 }CPSSSI_XP_OFFSET_DATA,*PCPSSSI_XP_OFFSET_DATA;
 
 static LIST_HEAD(cpsssi_xp_head);
+
+/**
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+**/
+/// @{
 
 #if 0
 #define DEBUG_CPSSSI_COMMAND(fmt...)	printk(fmt)
@@ -78,15 +90,25 @@ static LIST_HEAD(cpsssi_xp_head);
 #define DEBUG_CPSSSI_EEPROM(fmt...)	do { } while (0)
 #endif
 
-static int cpsssi_max_devs;			/*device count */
-static int cpsssi_major = 0;
-static int cpsssi_minor = 0; 
+/// @}
+
+
+static int cpsssi_max_devs;			///< device count
+static int cpsssi_major = 0;		///< major number
+static int cpsssi_minor = 0;		///< minor number
 
 static struct cdev cpsssi_cdev;
 static struct class *cpsssi_class = NULL;
 
 static dev_t cpsssi_dev;
 
+/**
+	@struct cps_ssi_data
+	@~English
+	@brief CPSSSI driver's Data
+	@~Japanese
+	@brief CPSSSI ドライバデータ構造体
+**/
 static const CPSSSI_DEV_DATA cps_ssi_data[] = {
 	{
 		.Name = "CPS-SSI-4P",
@@ -101,10 +123,14 @@ static const CPSSSI_DEV_DATA cps_ssi_data[] = {
 };
 
 #include "cpsssi_devdata.h"
+
 /**
-	@function __cpsssi_find_sensor_device
+	@~English
 	@param node : device node
 	@return true : product id, false : -1
+	@~Japanese
+	@param node : デバイスノード
+	@return 成功 : プロダクトID , 失敗 : -1
 **/ 
 int __cpsssi_find_sensor_device( int node )
 {
@@ -122,12 +148,19 @@ int __cpsssi_find_sensor_device( int node )
 }
 
 /**
-	@function cpsssi_read_eeprom
+	@brief cpsssi_read_eeprom
 	@param dev : device number
 	@param cate : device category ( SSI )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0, Failed : 1
+	@~Japanese
+	@brief EEPROMの読み出し
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( SSI )
+	@param num : ページ番号 ( 0 から 4)
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
 unsigned long cpsssi_read_eeprom( unsigned int dev, unsigned int cate, unsigned int num, unsigned short *val )
 {
@@ -140,12 +173,20 @@ unsigned long cpsssi_read_eeprom( unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsssi_write_eeprom
+	@~English
+	@brief cpsssi_write_eeprom
 	@param dev : device number
 	@param cate : device category ( SSI )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0 , Failed : 1
+	@~Japanese
+	@brief EEPROMの書き込み
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 (  SSI )
+	@param num : ページ番号 ( 0 から 4 )
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
 unsigned long cpsssi_write_eeprom(unsigned int dev, unsigned int cate, unsigned int num, unsigned short val )
 {
@@ -170,9 +211,12 @@ unsigned long cpsssi_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsssi_clear_eeprom
+	@~English
+	@brief cpsssi_clear_eeprom
 	@param dev : device number
-	@return true : 0
+	@~Japanese
+	@brief EEPROMのクリア
+	@param dev : デバイス番号(  1-31 )
 **/ 
 void cpsssi_clear_eeprom( unsigned int dev )
 {
@@ -180,9 +224,16 @@ void cpsssi_clear_eeprom( unsigned int dev )
 }
 
 /**
-	@function cpsssi_clear_fpga_extension_reg
+	@~English
+	@brief cpsssi_clear_fpga_extension_reg
 	@param dev : device number
-	@return true : 0
+	@param cate : category number
+	@param num : page number ( 0 to 4 )
+	@~Japanese
+	@brief FPGA拡張レジスタのクリア
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( SSI )
+	@param num : ページ番号 ( 0 から 4 )
 **/ 
 void cpsssi_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsigned int num )
 {
@@ -197,7 +248,17 @@ void cpsssi_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 }
 
 
-
+/**
+	@~English
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief SSIのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/
 static long cpsssi_read_ssi_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ) , wStatus );
@@ -205,6 +266,24 @@ static long cpsssi_read_ssi_status( unsigned long BaseAddr, unsigned short *wSta
 	return 0;
 }
 
+/**
+	@~English
+	@brief SSI Command Function.
+	@param BaseAddr : base address
+	@param isReadWrite : write, read, or call flag
+	@param size : size 1 ,2 , or 4.
+	@param wCommand : command address
+	@param vData : data
+	@return true : 0
+	@~Japanese
+	@brief SSI コマンド関数
+	@param BaseAddr : ベースアドレス
+	@param isReadWrite : 書き込みか読み込みか呼び出し、いずれかのフラグ
+	@param size : サイズ ( 1 か 2 か 4 )
+	@param wCommand : コマンドアドレス
+	@param vData : データ
+	@return 成功 : 0
+**/
 static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned size, unsigned short wCommand , void *vData )
 {
 	unsigned long com_addr, dat_addr_l, dat_addr_u;
@@ -272,6 +351,22 @@ static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	return 0;
 }
 
+/**
+	@~English
+	@brief CPS-SSI-4P Command Function.
+	@param BaseAddr : base address
+	@param isReadWrite : write, read, or call flag
+	@param wCommand4p : command address
+	@param vData : data
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4P コマンド関数
+	@param BaseAddr : ベースアドレス
+	@param isReadWrite : 書き込みか読み込みか呼び出し、いずれかのフラグ
+	@param wCommand4p : コマンドアドレス
+	@param vData : データ
+	@return 成功 : 0
+**/
 static long cpsssi_command_4p( unsigned long BaseAddr, unsigned char isReadWrite , unsigned short wCommand4p , unsigned short *vData )
 {
 	unsigned short val_rw = CPS_SSI_SSI_SET_RW_READ;
@@ -304,16 +399,38 @@ static long cpsssi_command_4p( unsigned long BaseAddr, unsigned char isReadWrite
 	return 0;
 }
 
-
+/*!
+	@~English
+	@brief SSI initialize.
+	@~Japanese
+	@brief SSI 初期化
+*/
 #define CPSSSI_COMMAND_SSI_INIT( addr ) \
 	cpsssi_command( addr, CPS_SSI_COMMAND_CALL, 0, CPS_SSI_COMMAND_SSI_INIT, NULL )
 
+/*!
+	@~English
+	@brief CPS-SSI-4P get status.
+	@~Japanese
+	@brief CPS-SSI-4P ステータス取得
+*/
 #define CPSSSI_COMMAND_4P_GET_STATUS( addr , val ) \
 	cpsssi_command_4p( addr, CPS_SSI_4P_COMMAND_READ, \
 		CPS_SSI_SSI_SET_ADDR_COMMAND_STATUS, val )
 
-
-void cpsssi_command_4p_set_sence_resistance( unsigned long BaseAddr, unsigned long dwVal )
+/**
+	@~English
+	@param CPS-SSI-4P set sense resistance.
+	@param BaseAddr : base address
+	@param dwVal : value (sense resistance )
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのセンス抵抗を設定する関数
+	@param BaseAddr : ベースアドレス
+	@param dwVal : センス抵抗の値
+	@return 成功 : 0
+**/
+void cpsssi_command_4p_set_sense_resistance( unsigned long BaseAddr, unsigned long dwVal )
 {
 	unsigned short wVal;
 	unsigned int i; 	
@@ -321,11 +438,23 @@ void cpsssi_command_4p_set_sence_resistance( unsigned long BaseAddr, unsigned lo
 	for( i = 0; i < 4 ; i ++ ){
 		wVal =  ( dwVal & (0xFF << (( 3 - i ) * 8) ) ) >> ( ( 3 - i ) * 8 );
 		cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_WRITE,
-			CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENCE_RESISTANCE( i ), &wVal );
+			CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENSE_RESISTANCE( i ), &wVal );
 	}
 }
 
-void cpsssi_command_4p_get_sence_resistance( unsigned long BaseAddr, unsigned long *dwVal )
+/**
+	@~English
+	@param CPS-SSI-4P get sense resistance.
+	@param BaseAddr : base address
+	@param dwVal : value (sense resistance )
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのセンス抵抗を取得する関数
+	@param BaseAddr : ベースアドレス
+	@param dwVal : センス抵抗の値
+	@return 成功 : 0
+**/
+void cpsssi_command_4p_get_sense_resistance( unsigned long BaseAddr, unsigned long *dwVal )
 {
 	unsigned short wVal;
 	unsigned int i; 	
@@ -334,12 +463,26 @@ void cpsssi_command_4p_get_sence_resistance( unsigned long BaseAddr, unsigned lo
 		*dwVal = 0;
 		for( i = 0; i < 4 ; i ++ ){
 			cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_READ,
-				CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENCE_RESISTANCE( i ), &wVal );
+				CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENSE_RESISTANCE( i ), &wVal );
 			*dwVal |= wVal << (( 3 - i ) * 8);
 		}
 	}
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P set channel's parameter.
+	@param BaseAddr : base address
+	@param ch : channel
+	@param dwVal : channel's parameter
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのチャネルを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param ch : チャネル
+	@param dwVal : チャネル・パラメータの値
+	@return 成功 : 0
+**/
 void cpsssi_command_4p_set_channel( unsigned long BaseAddr, unsigned int ch , unsigned long dwVal )
 {
 	unsigned short wVal = 0, wCom = 0;
@@ -358,6 +501,20 @@ void cpsssi_command_4p_set_channel( unsigned long BaseAddr, unsigned int ch , un
 	}
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P get channel's parameter.
+	@param BaseAddr : base address
+	@param ch : channel
+	@param dwVal : channel's parameter
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのチャネルを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param ch : チャネル
+	@param dwVal : チャネル・パラメータの値
+	@return 成功 : 0
+**/
 void cpsssi_command_4p_get_channel( unsigned long BaseAddr, unsigned int ch , unsigned long *dwVal )
 {
 	unsigned short wVal = 0, wCom = 0;
@@ -381,7 +538,18 @@ void cpsssi_command_4p_get_channel( unsigned long BaseAddr, unsigned int ch , un
 }
 
 
-
+/**
+	@~English
+	@param CPS-SSI-4P set start.(with channel)
+	@param BaseAddr : base address
+	@param ch : channel
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pの測定を開始する関数
+	@param BaseAddr : ベースアドレス
+	@param ch : チャネル
+	@return 成功 : 0
+**/
 void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 {
 	unsigned short wVal = 0;
@@ -397,12 +565,26 @@ void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 			CPS_SSI_SSI_SET_ADDR_COMMAND_STATUS, &wVal );
 
 	// Conversion Busy Wait
-	do{
-		CPSSSI_COMMAND_4P_GET_STATUS( BaseAddr , &wStatus );
-	} while( !(wStatus & 0x40) );
+	//do{
+	//	CPSSSI_COMMAND_4P_GET_STATUS( BaseAddr , &wStatus );
+	//} while( !(wStatus & 0x40) );
 
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P get temprature.(with channel)
+	@param BaseAddr : base address
+	@param ch : channel
+	@param dwVal : temprature value
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pの温度データを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param ch : チャネル
+	@param dwVal: 温度データ
+	@return 成功 : 0
+**/
 void cpsssi_command_4p_get_temprature( unsigned long BaseAddr, unsigned int ch , unsigned long *dwVal )
 {
 	unsigned short wVal = 0, wCom = 0;
@@ -426,6 +608,18 @@ void cpsssi_command_4p_get_temprature( unsigned long BaseAddr, unsigned int ch ,
 }
 
 /***** allocate/free list_head *******************************/
+/**
+	@~English
+	@param CPS-SSI-4P allocate offset list.
+	@param node : device node
+	@param max_ch : maximum channel
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのオフセットデータリストを生成する関数
+	@param node : デバイスノード
+	@param max_ch : 最大チャネル
+	@return 成功 : 0
+**/
 void cpsssi_4p_allocate_offset_list( unsigned int node, unsigned int max_ch ){
 
 	unsigned int cnt;
@@ -447,6 +641,16 @@ void cpsssi_4p_allocate_offset_list( unsigned int node, unsigned int max_ch ){
 
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P free offset list.
+	@param node : device node
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのオフセットデータリストを削除する関数
+	@param node : デバイスノード
+	@return 成功 : 0
+**/
 void cpsssi_4p_free_offset_list_of_device( unsigned int node ){
 
 	PCPSSSI_XP_OFFSET_DATA xp_off_data, next;
@@ -459,7 +663,22 @@ void cpsssi_4p_free_offset_list_of_device( unsigned int node ){
 	}
 }
 
-
+/**
+	@~English
+	@param CPS-SSI-4P set offset by channel.
+	@param node : device node
+	@param ch : channel
+	@param pData : offset data list .
+	@param bVal : offset value
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのオフセットを設定する関数
+	@param node : デバイスノード
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param bVal : オフセットの値
+	@return 成功 : 0
+**/
 void cpsssi_4p_set_channeldata_offset( unsigned int node, unsigned int ch ,CPSSSI_4P_CHANNEL_DATA pData[], unsigned char bVal ){
 
 	PCPSSSI_XP_OFFSET_DATA xp_off_data, next;
@@ -480,6 +699,22 @@ void cpsssi_4p_set_channeldata_offset( unsigned int node, unsigned int ch ,CPSSS
 	}
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P get offset by channel.
+	@param node : device node
+	@param ch : channel
+	@param pData : offset data list .
+	@param bVal : offset value
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pのオフセットを取得する関数
+	@param node : デバイスノード
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param bVal : オフセットの値
+	@return 成功 : 0
+**/
 void cpsssi_4p_get_channeldata_offset( unsigned int node, unsigned int ch ,CPSSSI_4P_CHANNEL_DATA pData[], unsigned char *bVal ){
 
 	PCPSSSI_XP_OFFSET_DATA xp_off_data, next;
@@ -502,6 +737,20 @@ void cpsssi_4p_get_channeldata_offset( unsigned int node, unsigned int ch ,CPSSS
 
 /***** Set/Get ChannelData structure function *******************************/
 
+/**
+	@~English
+	@param CPS-SSI-4P set basic data of channel data list.
+	@param ch : channel
+	@param pData : offset data list .
+	@param dwVal : value ( wire , standard )
+	@return true : 0
+	@~Japanese
+	@brief CPS-SSI-4Pの基本情報をチャネル・リストに設定する関数
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param dwVal : 値( * 線式, PT or Jpt )
+	@return 成功 : 0
+**/
 void cpsssi_4p_set_channeldata_basic( unsigned int ch , CPSSSI_4P_CHANNEL_DATA pData[], unsigned long dwVal ){
 
 	pData[ch].Current_Wire_Status = SSI_4P_CHANNEL_GET_RTD_WIRE_MODE( dwVal );
@@ -509,13 +758,36 @@ void cpsssi_4p_set_channeldata_basic( unsigned int ch , CPSSSI_4P_CHANNEL_DATA p
 
 }
 
+/**
+	@~English
+	@param CPS-SSI-4P set last status of channel data list.
+	@param ch : channel
+	@param pData : offset data list .
+	@param dwVal : value
+	@~Japanese
+	@brief CPS-SSI-4Pの最終ステータスをチャネル・リストへ設定する関数
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param dwVal : 値
+**/
 void cpsssi_4p_set_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_CHANNEL_DATA pData[],  unsigned long dwVal ){
 
 	pData[ch].lastStatus = ( (dwVal & 0xFF000000 ) >> 24 );
 
 }
 
-
+/**
+	@~English
+	@param CPS-SSI-4P get last status of channel data list.
+	@param ch : channel
+	@param pData : offset data list .
+	@param dwVal : value
+	@~Japanese
+	@brief CPS-SSI-4Pの最終ステータスをチャネル・リストから取得する関数
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param dwVal : 値
+**/
 unsigned long cpsssi_4p_get_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_CHANNEL_DATA pData[] ){
 
 	return pData[ch].lastStatus ;
@@ -523,21 +795,56 @@ unsigned long cpsssi_4p_get_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_C
 }
 
 /* Offset add or sub */
+/**
+	@~English
+	@param CPS-SSI-4P add offset value.
+	@param node : device node
+	@param ch : channel
+	@param pData : offset data list .
+	@param dwVal : value
+	@note 2016.05.17 : The Status value change different value for Overflow(underflow).
+	@return The value adds offset.
+	@~Japanese
+	@brief CPS-SSI-4Pのオフセット値を追加する関数
+	@param node : デバイスノード
+	@param ch : チャネル
+	@param pData : チャネル・オフセット・リスト
+	@param dwVal : 値
+	@note 2016.05.17 : 加減算のパターンによって　キャリーオーバによるステータス値がおかしくなる現象を修正
+	@return オフセット補正が加算された値
+**/
 unsigned long cpsssi_4p_addsub_channeldata_offset( unsigned int node, unsigned int ch , CPSSSI_4P_CHANNEL_DATA pData[], unsigned long dwVal ){
 
 	unsigned char offset;
 
+	unsigned long tmpVal = (dwVal & 0x00FFFFFF );
+
 	cpsssi_4p_get_channeldata_offset( node, ch , pData, &offset );
 
 	if( offset & 0x80 )		 
-		return ( dwVal - (unsigned long)( (0x80 - (offset & 0x7F)) << 5) );
+		tmpVal =  ( tmpVal - (unsigned long)( (0x80 - (offset & 0x7F)) << 5) );
 	else
-		return ( dwVal + (unsigned long)( (offset & 0x7F) << 5) );
+		tmpVal =  ( tmpVal + (unsigned long)( (offset & 0x7F) << 5) );
+
+	return ( (dwVal & 0xFF000000) | (tmpVal & 0x00FFFFFF ) );
+
 }
 
 /***** Interrupt function *******************************/
 static const int AM335X_IRQ_NMI=7;
 
+/**
+	@~English
+	@brief cpsssi_isr_func
+	@param irq : interrupt
+	@param dev_instance : device instance
+	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@~Japanese
+	@brief cpsssi 割り込み処理
+	@param irq : IRQ番号
+	@param dev_instance : デバイス・インスタンス
+	@return IRQ_HANDLED か, IRQ_NONE
+**/
 irqreturn_t cpsssi_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
@@ -561,7 +868,20 @@ irqreturn_t cpsssi_isr_func(int irq, void *dev_instance){
 
 
 /***** file operation functions *******************************/
-
+/**
+	@~English
+	@brief cpsssi_ioctl
+	@param filp : struct file pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsssi_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/
 static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
 	PCPSSSI_DRV_FILE dev = filp->private_data;
@@ -570,6 +890,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned int num = 0;
 	unsigned char valb = 0;
 	unsigned int cnt = 0;
+	unsigned long flags;
 	
 	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
 
@@ -596,11 +917,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_get_temprature((unsigned long)dev->baseAddr , ioc.ch, &valdw );
 					cpsssi_4p_set_channeldata_lastStatus(ioc.ch, pData, valdw);
 					ioc.val = cpsssi_4p_addsub_channeldata_offset(dev->node, ioc.ch, pData, valdw);
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -614,9 +935,9 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_set_start((unsigned long)dev->baseAddr , ioc.ch );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -630,7 +951,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 //					CPSSSI_COMMAND_4P_GET_STATUS((unsigned long)dev->baseAddr , &valw );
 //						ioc.val = (unsigned long) valw;
 					for( cnt = 0, valdw = 0; cnt < 4 ; cnt ++ ){					
@@ -638,7 +959,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						cpsssi_4p_set_channeldata_lastStatus(cnt , pData, 0x00 );
 					}
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -652,17 +973,17 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSSSI_COMMAND_4P_GET_STATUS((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
 					break;
 
-		case IOCTL_CPSSSI_SET_SENCE_RESISTANCE:
+		case IOCTL_CPSSSI_SET_SENSE_RESISTANCE:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
@@ -670,24 +991,24 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
-					cpsssi_command_4p_set_sence_resistance( (unsigned long)dev->baseAddr , valdw );
-					write_unlock(&dev->lock);
+					cpsssi_command_4p_set_sense_resistance( (unsigned long)dev->baseAddr , valdw );
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
-		case IOCTL_CPSSSI_GET_SENCE_RESISTANCE:
+		case IOCTL_CPSSSI_GET_SENSE_RESISTANCE:
 					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
-					cpsssi_command_4p_get_sence_resistance( (unsigned long)dev->baseAddr , &valdw );
+					spin_lock_irqsave(&dev->lock, flags);
+					cpsssi_command_4p_get_sense_resistance( (unsigned long)dev->baseAddr , &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -702,13 +1023,13 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = ioc.ch;
 					valdw = ioc.val;
 					cpsssi_4p_set_channeldata_basic( valw, pData, valdw );
 
 					cpsssi_command_4p_set_channel( (unsigned long)dev->baseAddr, valw, valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -719,11 +1040,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_command_4p_get_channel( (unsigned long)dev->baseAddr, valw, &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -740,12 +1061,12 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.ch;
 					valb = (unsigned char)ioc.val;
 					cpsssi_4p_set_channeldata_offset( dev->node, valw, pData, valb );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -756,11 +1077,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_4p_get_channeldata_offset( dev->node, valw, pData, &valb );
 					ioc.val = (unsigned long) valb;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -777,19 +1098,19 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = (unsigned short) ioc.ch;break;
 					default :
-						write_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 
 					cpsssi_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num,  valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -801,16 +1122,16 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = (unsigned short) ioc.ch;break;
 					default :
-						read_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 					cpsssi_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num, &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-READ:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 				
@@ -822,7 +1143,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 		case IOCTL_CPSSSI_CLEAR_EEPROM:
 
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = dev->data.ssiChannel;break;
@@ -831,7 +1152,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpsssi_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num );
 
 					cpsssi_clear_eeprom( dev->node );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;
@@ -840,7 +1161,19 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	return 0;
 }
 
-
+/**
+	@~English
+	@brief This function is called by open user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はOPEN関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/ 
 static int cpsssi_open(struct inode *inode, struct file *filp )
 {
 	int ret;
@@ -848,13 +1181,15 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
-
-	inode->i_private = inode; /* omajinai */
+	int iRet = 0;
 
 	DEBUG_CPSSSI_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if (	filp->private_data != (PCPSSSI_DRV_FILE)NULL ){
-		dev =  (PCPSSSI_DRV_FILE)filp->private_data;
+
+	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
+		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
+		filp->private_data = (PCPSSSI_DRV_FILE)dev;
+
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
@@ -862,8 +1197,8 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	}
 
 	filp->private_data = (PCPSSSI_DRV_FILE)kmalloc( sizeof(CPSSSI_DRV_FILE) , GFP_KERNEL );
-	
 	dev = (PCPSSSI_DRV_FILE)filp->private_data;
+	inode->i_private = dev;
 
 	dev->node = iminor( inode );
 	
@@ -874,13 +1209,17 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	if( allocMem != NULL ){
 		dev->baseAddr = allocMem;
 	}else{
+		iRet = -ENOMEM;
 		goto NOT_IOMEM_ALLOCATION;
 	}
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;
 	do{
-		if( cps_ssi_data[cnt].ProductNumber == -1 ) goto NOT_FOUND_SSI_PRODUCT;
+		if( cps_ssi_data[cnt].ProductNumber == -1 ) {
+			iRet = -EFAULT;
+			goto NOT_FOUND_SSI_PRODUCT;
+		}
 		if( cps_ssi_data[cnt].ProductNumber == product_id ){
 			dev->data = cps_ssi_data[cnt];
 			break;
@@ -895,6 +1234,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 
 	if( dev->data.ChannelData == NULL ){
 		printk(KERN_INFO" channel data allocation failed.\n");
+		iRet = -ENOMEM;
 		goto NOT_FOUND_SSI_PRODUCT;
 	}
 
@@ -906,6 +1246,9 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	if( ret ){
 		printk(" request_irq failed.(%x) \n",ret);
 	}
+
+	// spin_lock initialize
+	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
 
@@ -923,15 +1266,28 @@ NOT_FOUND_SSI_PRODUCT:
 NOT_IOMEM_ALLOCATION:
 	kfree( dev );
 
-	return -EFAULT;
+	return iRet;
 }
 
+/**
+	@~English
+	@brief This function is called by close user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はCLOSE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/
 static int cpsssi_close(struct inode * inode, struct file *filp ){
 
 	PCPSSSI_DRV_FILE dev;
 
-	if (	filp->private_data != (PCPSSSI_DRV_FILE)NULL ){
-		dev =  (PCPSSSI_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
+		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
 		dev->ref--;
 		if( dev->ref == 0 ){
 
@@ -945,7 +1301,8 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 				
 			kfree( dev );
 			
-			dev = NULL;
+			inode->i_private = (PCPSSSI_DRV_FILE)NULL;
+			filp->private_data = (PCPSSSI_DRV_FILE)NULL;
 		}
 	}
 	return 0;
@@ -953,7 +1310,10 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 }
 
 
-
+/**
+	@struct cpsssi_fops
+	@brief CPSSSI file operations
+**/
 static struct file_operations cpsssi_fops = {
 		.owner = THIS_MODULE,
 		.open = cpsssi_open,
@@ -961,6 +1321,15 @@ static struct file_operations cpsssi_fops = {
 		.unlocked_ioctl = cpsssi_ioctl,
 };
 
+
+/**
+	@~English
+	@brief cpsssi init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cpsssi 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsssi_init(void)
 {
 
@@ -968,7 +1337,7 @@ static int cpsssi_init(void)
 	int ret = 0;
 	int major;
 	int cnt;
-	unsigned short product_id;
+	short product_id;	// Ver.1.0.3
 
 	struct device *devlp = NULL;
 
@@ -1030,12 +1399,18 @@ static int cpsssi_init(void)
 
 }
 
+/**
+	@~English
+	@brief cpsssi exit function.
+	@~Japanese
+	@brief cpsssi 終了関数.
+**/
 static void cpsssi_exit(void)
 {
 
 	dev_t dev = MKDEV(cpsssi_major , 0 );
 	int cnt;
-	unsigned short product_id;
+	short product_id;	// Ver.1.0.3
 
 	for( cnt = cpsssi_minor; cnt < ( cpsssi_minor + cpsssi_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_SSI ) ){

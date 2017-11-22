@@ -20,7 +20,6 @@
 #include <linux/interrupt.h>
 #include <asm/io.h>
 #include <linux/device.h>
-#include <linux/delay.h>
 
 #include <linux/slab.h>
 
@@ -29,7 +28,7 @@
 #include "../include/cps_ids.h"
 #include "../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.0"
+#define DRV_VERSION	"1.0.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -39,16 +38,31 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSAIO_DRIVER_NAME "cpsaio"
 
+/**
+	@struct cps_aio_data
+	@~English
+	@brief CPSAIO driver's File
+	@~Japanese
+	@brief CPSAIO ドライバファイル構造体
+**/
 typedef struct __cpsaio_driver_file{
-	rwlock_t lock;
-	unsigned ref;
+	spinlock_t		lock; 				///< lock
+	unsigned int ref;						///< reference count 
 
-	unsigned int node;
-	unsigned long localAddr;
-	unsigned char __iomem *baseAddr;
-	CPSAIO_DEV_DATA data;
+	unsigned int node;					///< Device Node
+	unsigned long localAddr; 			///< local Address
+	unsigned char __iomem *baseAddr;	///< Memory Address
+	CPSAIO_DEV_DATA data;				///< Device Data
 
 }CPSAIO_DRV_FILE,*PCPSAIO_DRV_FILE;
+
+/*!
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+*/
+/// @{
 
 #if 0
 #define DEBUG_CPSAIO_COMMAND(fmt...)	printk(fmt)
@@ -74,16 +88,24 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_READFIFO(fmt...)	do { } while (0)
 #endif
 
+/// @}
 
-static int cpsaio_max_devs;			/*device count */
-static int cpsaio_major = 0;
-static int cpsaio_minor = 0; 
+static int cpsaio_max_devs;			///< device count
+static int cpsaio_major = 0;		///< major number
+static int cpsaio_minor = 0; 		///< minor number
 
 static struct cdev cpsaio_cdev;
 static struct class *cpsaio_class = NULL;
 
 static dev_t cpsaio_dev;
 
+/**
+	@struct cps_aio_data
+	@~English
+	@brief CPSAIO driver's Data
+	@~Japanese
+	@brief CPSAIO ドライバデータ構造体
+**/
 static const CPSAIO_DEV_DATA cps_aio_data[] = {
 	{
 		.Name = "CPS-AI-1608LI",
@@ -97,12 +119,6 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 			.Resolution = 0,
 			.Channel = 0,
 		},
-/*
-		.aiResolution = 16,
-		.ai.Channel = 8,
-		.aoResolution = 0,
-		.ao.Channel = 0,
-*/
 	},
 	{
 		.Name = "CPS-AO-1604LI",
@@ -116,12 +132,32 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 			.Resolution = 16,
 			.Channel = 4,
 		},
-/*
-		.aiResolution = 0,
-		.ai.Channel = 0,
-		.aoResolution = 16,
-		.ao.Channel = 4,
-*/
+	},
+	{
+		.Name = "CPS-AI-1608ALI",
+		.ProductNumber = CPS_DEVICE_AI_1608ALI ,
+		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AI | CPS_AIO_ABILITY_MEM,
+		.ai = {
+			.Resolution = 16,
+			.Channel = 8,
+		},
+		.ao = {
+			.Resolution = 0,
+			.Channel = 0,
+		},
+	},
+	{
+		.Name = "CPS-AO-1604VLI",
+		.ProductNumber = CPS_DEVICE_AO_1604VLI,
+		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AO | CPS_AIO_ABILITY_MEM,
+		.ai = {
+			.Resolution = 0,
+			.Channel = 0,
+		},
+		.ao = {
+			.Resolution = 16,
+			.Channel = 4,
+		},
 	},
 	{
 		.Name = "",
@@ -135,18 +171,24 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 			.Resolution = -1,
 			.Channel = -1,
 		},
-/*
-		.aiResolution = -1,
-		.ai.Channel = -1,
-		.aoResolution = -1,
-		.ao.Channel = -1,
-*/
 	},
 };
 
 #include "cpsaio_devdata.h"
 
-// DAC161S055 0-FF not enough values.(CPS-AO-1604LI only)
+/**
+  @~English
+	@brief DAC161S055 0-FF not enough values.
+	@param dat : Analog Output Data ( from 0 to 65535 )
+	@return tmpDat : Analog Output Data ( from 256 to 65535 )
+	@warning CPS-AO-1604LI only!
+	@~Japanese
+	@brief 0-65535の範囲を 256-65535に計算する関数。
+	@attention DAC161S055 ばらつきがひどいため ０からFFまで値を使用しない.
+	@param dat : アナログ出力値 ( 0 から 65535まで )
+	@return tmpDat : アナログ出力値 ( 256 から 65535まで )
+	@warning CPS-AO-1604LI専用
+**/
 static unsigned short calc_DAC161S055( unsigned short dat ){
 	double dblDat;
 	unsigned short tmpDat;
@@ -164,9 +206,12 @@ static unsigned short calc_DAC161S055( unsigned short dat ){
 }
 
 /**
-	@function __cpsaio_find_analog_device
+	@~English
 	@param node : device node
 	@return true : product id, false : -1
+	@~Japanese
+	@param node : デバイスノード
+	@return 成功 : プロダクトID , 失敗 : -1
 **/ 
 int __cpsaio_find_analog_device( int node )
 {
@@ -183,12 +228,16 @@ int __cpsaio_find_analog_device( int node )
 	return product_id;
 }
 
-
 /**
-	@function cpsaio_read_ai_data
+  @~English
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
+	@~Japanese
+	@brief AIのデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 {
@@ -198,10 +247,15 @@ static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 }
 
 /**
-	@function cpsaio_read_ao_data
+	@~English
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
+	@~Japanese
+	@brief AOのデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
 **/ 
 static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 {
@@ -211,10 +265,15 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 }
 
 /**
-	@function cpsaio_read_ai_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief AIのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -224,10 +283,15 @@ static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStat
 }
 
 /**
-	@function cpsaio_read_ao_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief AOのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -237,10 +301,15 @@ static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStat
 }
 
 /**
-	@function cpsaio_read_mem_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief メモリのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -251,7 +320,8 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 
 
 /**
-	@function cpsaio_command
+	@~English
+	@brief AIO Command Function.
 	@param BaseAddr : base address
 	@param isReadWrite : write, read, or call flag
 	@param isEcu	: ecu or command flag
@@ -259,6 +329,15 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 	@param wCommand : command address
 	@param vData : data
 	@return true : 0
+	@~Japanese
+	@brief AIO コマンド関数
+	@param BaseAddr : ベースアドレス
+	@param isReadWrite : 書き込みか読み込みか呼び出し、いずれかのフラグ
+	@param isEcu	: ECUか　COMMANDかのフラグ
+	@param size : サイズ ( 1 か 2 か 4 )
+	@param wCommand : コマンドアドレス
+	@param vData : データ
+	@return 成功 : 0
 **/ 
 static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned int isEcu, unsigned int size, unsigned short wCommand , void *vData )
 {
@@ -333,6 +412,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	return 0;
 }
 
+/*!
+ @name CPSAIO-COMMAND
+*/
+/// @{
+
+/*!
+ @~English
+ @name ECU COMMAND
+ @~Japanese
+ @name ECUコマンド
+*/
+/// @{
 #define CPSAIO_COMMAND_ECU_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_INIT, NULL )
 #define CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( addr, data ) \
@@ -347,8 +438,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_AO_INTERRUPT_FLAG, data )
 #define CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_AO_INTERRUPT_FLAG, data )
-
-
+#define CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_MEM_INTERRUPT_FLAG, data )
+#define CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_MEM_INTERRUPT_FLAG, data )
+/// @}
+/*!
+ @~English
+ @name AI COMMAND
+ @~Japanese
+ @name AI用コマンド
+*/
+/// @{
 #define CPSAIO_COMMAND_AI_SINGLEMULTI( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AI_SET_EXCHANGE, data )
 #define CPSAIO_COMMAND_AI_SETCHANNEL( addr, data ) \
@@ -368,14 +469,53 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 #define CPSAIO_COMMAND_AI_GET_CALIBRATION( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_COMMAND, 4, CPS_AIO_COMMAND_AI_SET_CALIBRATION_TERMS, data )
 
+/// @}
+/*!
+ @~English
+ @name AO COMMAND
+ @~Japanese
+ @name AO用コマンド
+*/
+/// @{
+
+/*!
+	@~English
+	@brief Analog output set one channel or many channel.
+	@~Japanese
+	@brief AO 単数チャネル取得(Signle)か 複数チャネル取得(Multi)の設定
+*/
 #define CPSAIO_COMMAND_AO_SINGLEMULTI( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AO_SET_EXCHANGE, data )
+/*!
+	@~English
+	@brief Analog output set channel number.
+	@~Japanese
+	@brief AO チャネル数の設定
+*/
 #define CPSAIO_COMMAND_AO_SETCHANNEL( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AO_SET_CHANNELS, data )
+/*!
+	@~English
+	@brief Analog output initialize.
+	@~Japanese
+	@brief AO 初期化
+*/
 #define CPSAIO_COMMAND_AO_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_INIT, NULL )
+/*!
+	@~English
+	@brief Analog output open.
+	@~Japanese
+	@brief AO ゲートオープン
+*/
 #define CPSAIO_COMMAND_AO_OPEN( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_GATE_OPEN, NULL )
+/*!
+	@~English
+	@brief Analog output stop.
+	@~Japanese
+	@brief AO 強制停止
+*/
 #define CPSAIO_COMMAND_AO_STOP( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_FORCE_STOP, NULL )
 #define CPSAIO_COMMAND_AO_SETCLOCK( addr, data ) \
@@ -387,17 +527,40 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 #define CPSAIO_COMMAND_AO_GET_CALIBRATION( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_COMMAND, 4, CPS_AIO_COMMAND_AO_SET_CALIBRATION_TERMS, data )
 
+/// @}
+/*!
+ @~English
+ @name Memory COMMAND
+ @~Japanese
+ @name メモリ用コマンド
+*/
+/// @{
 
+/*!
+	@~English
+	@brief Memory Init Command
+	@~Japanese
+	@brief メモリ初期化コマンド
+*/
 #define CPSAIO_COMMAND_MEM_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_MEM_INIT, NULL )
+/// @}
+/// @}
 
 /**
-	@function cpsaio_read_eeprom
+	@brief cpsaio_read_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0, Failed : 1
+	@~Japanese
+	@brief EEPROMの読み出し
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
 unsigned long cpsaio_read_eeprom( unsigned int dev, unsigned int cate, unsigned int num, unsigned short *val )
 {
@@ -410,14 +573,22 @@ unsigned long cpsaio_read_eeprom( unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsaio_write_eeprom
+	@~English
+	@brief cpsaio_write_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0 , Failed : 1
+	@~Japanese
+	@brief EEPROMの書き込み
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
-unsigned long cpssio_write_eeprom(unsigned int dev, unsigned int cate, unsigned int num, unsigned short val )
+unsigned long cpsaio_write_eeprom(unsigned int dev, unsigned int cate, unsigned int num, unsigned short val )
 {
 	unsigned short chkVal;
 
@@ -440,9 +611,12 @@ unsigned long cpssio_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsaio_clear_eeprom
+	@~English
+	@brief cpsaio_clear_eeprom
 	@param dev : device number
-	@return true : 0
+	@~Japanese
+	@brief EEPROMのクリア
+	@param dev : デバイス番号(  1-31 )
 **/ 
 void cpsaio_clear_eeprom( unsigned int dev )
 {
@@ -450,9 +624,16 @@ void cpsaio_clear_eeprom( unsigned int dev )
 }
 
 /**
-	@function cpsaio_clear_fpga_extension_reg
+	@~English
+	@brief cpsaio_clear_fpga_extension_reg
 	@param dev : device number
-	@return true : 0
+	@param cate : category number
+	@param num : page number ( 0 to 4 )
+	@~Japanese
+	@brief FPGA拡張レジスタのクリア
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
 **/ 
 void cpsaio_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsigned int num )
 {
@@ -471,6 +652,19 @@ void cpsaio_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 /***** Interrupt function *******************************/
 static const int AM335X_IRQ_NMI=7;
 
+
+/**
+	@~English
+	@brief cpsaio_isr_func
+	@param irq : interrupt 
+	@param dev_instance : device instance
+	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@~Japanese
+	@brief cpsaio 割り込み処理
+	@param irq : IRQ番号
+	@param dev_instance : デバイス・インスタンス
+	@return IRQ_HANDLED か, IRQ_NONE
+**/ 
 irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
@@ -495,11 +689,26 @@ irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 
 /***** file operation functions *******************************/
 
+/**
+	@~English
+	@brief cpsaio_ioctl_ecu (cpsaio_ioctl sub function.)
+	@param dev : CPSAIO_DRV_FILE pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)	@return long (see errno.h)
+	@~Japanese
+	@brief ECU用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/ 
 long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
 	unsigned short valw = 0;
 	unsigned long valdw = 0;
 	struct cpsaio_ioctl_arg ioc;
+	unsigned long flags;
 
 	switch( cmd ){
 /* ECU */
@@ -511,10 +720,10 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( (unsigned long)dev->baseAddr , &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -529,10 +738,10 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -546,10 +755,10 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_ECU_AO_GET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -559,11 +768,27 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 		return 0;
 }
 
+
+/**
+	@~English
+	@brief cpsaio_ioctl_ai　(cpsaio_ioctl sub function.)
+	@param dev : CPSAIO_DRV_FILE pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)	@return long (see errno.h)
+	@~Japanese
+	@brief AI用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/ 
 long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
 	unsigned short valw = 0;
 	unsigned long valdw = 0;
 	struct cpsaio_ioctl_arg ioc;
+	unsigned long flags;
 
 	switch( cmd ){
 /* Analog Input */
@@ -574,10 +799,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsaio_read_ai_data((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -591,12 +816,12 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &datBuf, (int __user *)arg, sizeof(datBuf) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					for( cnt = 0; cnt < datBuf.num; cnt ++ ){
 						
 						datBuf.val[cnt] = (unsigned long)valw;
 					}
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &datBuf, sizeof(datBuf) ) ){
 						return -EFAULT;
@@ -610,10 +835,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -635,10 +860,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					CPSAIO_COMMAND_AI_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -650,10 +875,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					CPSAIO_COMMAND_AI_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -665,10 +890,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 		case IOCTL_CPSAIO_SET_SAMPNUM_AI:
@@ -679,10 +904,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AI_SETSAMPNUM( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -694,13 +919,13 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AI_SET_CALIBRATION( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					do{
-						udelay( 1 );
+						contec_cps_micro_delay_sleep( 1 );
 						cpsaio_read_ai_status( (unsigned long)dev->baseAddr, &valw );
 					}while( valw & CPS_AIO_AI_STATUS_CALIBRATION_BUSY );
 
@@ -713,10 +938,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_AI_GET_CALIBRATION( (unsigned long)dev->baseAddr, &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -727,11 +952,27 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 		return 0;
 }
 
+/**
+	@~English
+	@brief ao ioctl function. (cpsaio_ioctl sub function.)
+	@param dev : CPSAIO_DRV_FILE pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief AO用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+
+**/ 
 long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
 	unsigned short valw = 0;
 	unsigned long valdw = 0;
 	struct cpsaio_ioctl_arg ioc;
+	unsigned long flags;
 
 	switch( cmd ){
 
@@ -744,14 +985,14 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 
 					if( dev->data.ProductNumber == CPS_DEVICE_AO_1604LI )
 						valw = calc_DAC161S055( valw );
 
 					cpsaio_write_ao_data( (unsigned long)dev->baseAddr , valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -762,10 +1003,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsaio_read_ao_status( (unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned int) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -780,10 +1021,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					CPSAIO_COMMAND_AO_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -795,10 +1036,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AO_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -810,10 +1051,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					CPSAIO_COMMAND_AO_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 		case IOCTL_CPSAIO_START_AO:
@@ -830,10 +1071,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AO_SETSAMPNUM( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 	
@@ -845,13 +1086,13 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AO_SET_CALIBRATION( (unsigned long)dev->baseAddr, &valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					do{
-						udelay( 1 );
+						contec_cps_micro_delay_sleep( 1 );
 						cpsaio_read_ao_status( (unsigned long)dev->baseAddr, &valw );
 					}while( valw & CPS_AIO_AO_STATUS_CALIBRATION_BUSY );
 
@@ -864,10 +1105,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_AO_GET_CALIBRATION( (unsigned long)dev->baseAddr, &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -878,6 +1119,20 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 		return 0;
 }
 
+/**
+	@~English
+	@brief cpsaio_ioctl
+	@param filp : struct file pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsaio_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/ 
 static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
 	PCPSAIO_DRV_FILE dev = filp->private_data;
@@ -888,16 +1143,17 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	struct cpsaio_direct_command_arg dc_ioc;
 	unsigned int num = 0;
 	long lRet;
-	
+	unsigned long flags;
+
 	unsigned int abi ;
 
 	memset( &ioc, 0 , sizeof(ioc) );
 	memset( &d_ioc, 0, sizeof(d_ioc) );
 	memset( &dc_ioc, 0, sizeof(dc_ioc) );
 
-	write_lock(&dev->lock);
+	spin_lock_irqsave(&dev->lock, flags);
 	abi = dev->data.Ability;
-	write_unlock(&dev->lock);
+	spin_unlock_irqrestore(&dev->lock, flags);
 
 /* Hardware Ability IOCTL's */
 
@@ -942,7 +1198,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :
 						ioc.val = dev->data.ai.Resolution	;
@@ -951,7 +1207,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						ioc.val = dev->data.ao.Resolution	;
 						break;
 					}
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -965,7 +1221,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :				
 						ioc.val = dev->data.ai.Channel	;
@@ -974,7 +1230,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						ioc.val = dev->data.ao.Channel	;
 						break;
 					}
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -992,18 +1248,18 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_AI_1608LI: num = 0;break;
 					default :
-						write_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 
-					cpssio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num,  valw );
-					write_unlock(&dev->lock);
+					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num,  valw );
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -1015,16 +1271,16 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_AI_1608LI: num = 0;break;
 					default :
-						read_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num, &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-READ:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 				
@@ -1043,19 +1299,19 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_AO_1604LI: num = (unsigned short) ioc.ch;break;
 					default :
-						write_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 
-					cpssio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num,  valw );
-					write_unlock(&dev->lock);
+					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num,  valw );
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -1067,16 +1323,16 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_AO_1604LI: num = (unsigned short) ioc.ch;break;
 					default :
-						read_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num, &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-READ:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 				
@@ -1088,7 +1344,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 		case IOCTL_CPSAIO_CLEAR_EEPROM:
 
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_AI_1608LI: num = 1;break;
@@ -1101,7 +1357,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						cpsaio_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num );
 
 					cpsaio_clear_eeprom( dev->node );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;
@@ -1115,11 +1371,11 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) d_ioc.val;
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT OUTPUT: [%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
 					cps_common_outw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -1130,13 +1386,13 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					cps_common_inpw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , &valw );
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT INPUT:[%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
 					d_ioc.val = (unsigned long) valw;
 
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &d_ioc, sizeof(d_ioc) ) ){
 						return -EFAULT;
@@ -1151,7 +1407,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &dc_ioc, (int __user *)arg, sizeof(dc_ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					if( dc_ioc.size == 2 ){
 						valw = (unsigned short) dc_ioc.val;
 						cpsaio_command( (unsigned long)( dev->baseAddr ) ,CPS_AIO_COMMAND_WRITE, dc_ioc.isEcu, dc_ioc.size, dc_ioc.addr, &valw );
@@ -1159,7 +1415,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						valdw = dc_ioc.val;
 						cpsaio_command( (unsigned long)( dev->baseAddr ) ,CPS_AIO_COMMAND_WRITE, dc_ioc.isEcu, dc_ioc.size, dc_ioc.addr, &valdw );
 					}
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -1170,7 +1426,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &dc_ioc, (int __user *)arg, sizeof(dc_ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					if( dc_ioc.size == 2 ){
 						cpsaio_command( (unsigned long)( dev->baseAddr ) ,CPS_AIO_COMMAND_READ, dc_ioc.isEcu, dc_ioc.size, dc_ioc.addr, &valw );
 						d_ioc.val = (unsigned long) valw;
@@ -1178,7 +1434,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						cpsaio_command( (unsigned long)( dev->baseAddr ) ,CPS_AIO_COMMAND_READ, dc_ioc.isEcu, dc_ioc.size, dc_ioc.addr, &valdw );
 						d_ioc.val = valdw;
 					}					
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &dc_ioc, sizeof(dc_ioc) ) ){
 						return -EFAULT;
@@ -1192,9 +1448,9 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &dc_ioc, (int __user *)arg, sizeof(dc_ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsaio_command( (unsigned long)( dev->baseAddr ) ,CPS_AIO_COMMAND_CALL, dc_ioc.isEcu, 0, dc_ioc.addr, NULL );				
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &dc_ioc, sizeof(dc_ioc) ) ){
 						return -EFAULT;
@@ -1206,6 +1462,22 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 }
 
 
+/**
+	@~English
+	@brief This function is called by read user function.
+	@param filp : struct file pointer
+	@param buf : buffer (user)
+	@param count : size count
+	@param f_pos : struct Loff_t pointer
+	@return Success: read_finished size, Failed : Less then 0. (see errno.h)
+	@~Japanese
+	@brief この関数は read関数から呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param buf : ユーザバッファ
+	@param count : サイズカウント
+	@param f_pos : Loff_t構造体ポインタ
+	@return 成功: 読み込み完了データサイズ, 失敗 : 0未満. ( errno.h参照)
+**/ 
 static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, size_t count, loff_t *f_pos )
 {
 
@@ -1222,10 +1494,20 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 		{
 			timout = 0;
 			do{
-				contec_cps_micro_delay_sleep( 1 );
+				//contec_cps_micro_delay_sleep( 1 );
 				cpsaio_read_mem_status( (unsigned long) dev->baseAddr, &wStatus );
 				if( timout > 1000000 ){
-					DEBUG_CPSAIO_READFIFO(KERN_INFO"mem timeout \n");
+					DEBUG_CPSAIO_READFIFO(KERN_INFO"cpsaio: mem timeout (status mem:%x", wStatus);
+
+					cpsaio_read_ai_status((unsigned long) dev->baseAddr, &wStatus );
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",status ai:%x", wStatus);
+
+					CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wStatus );
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",flag mem:%x", wStatus);
+
+					CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wStatus );
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",flag ai:%x", wStatus);
+					
 					retval = -EFAULT;
 					goto out;
 				}else	timout++;
@@ -1250,7 +1532,22 @@ out:
 
 }
 
-
+/**
+	@~English
+	@brief This function is called by write user function.
+	@param filp : struct file pointer
+	@param buf : buffer (user)
+	@param count : size count
+	@param f_pos : struct Loff_t pointer
+	@return Success :read_finished size Failed : Less then 0. (see errno.h)
+	@~Japanese
+	@brief この関数は WRITE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param buf : ユーザバッファ
+	@param count : サイズカウント
+	@param f_pos : Loff_t構造体ポインタ
+	@return 成功：読み込み完了したサイズ 　失敗：0未満　 ( errno.hを参照 )
+**/ 
 static ssize_t cpsaio_set_sampling_data_ao(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos )
 {
 
@@ -1278,6 +1575,19 @@ out:
 
 }
 
+/**
+	@~English
+	@brief This function is called by open user function.
+	@param filp : struct file pointer
+	@param inode : node parameter 
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はOPEN関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/ 
 static int cpsaio_open(struct inode *inode, struct file *filp )
 {
 	int ret;
@@ -1285,13 +1595,14 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
-
-	inode->i_private = inode; /* omajinai */
+	int iRet = 0;
 
 	DEBUG_CPSAIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if (	filp->private_data != (PCPSAIO_DRV_FILE)NULL ){
-		dev =  (PCPSAIO_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSAIO_DRV_FILE)NULL ){
+		dev = (PCPSAIO_DRV_FILE)inode->i_private;
+		filp->private_data =  (PCPSAIO_DRV_FILE)dev;
+
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
@@ -1299,8 +1610,8 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	}
 
 	filp->private_data = (PCPSAIO_DRV_FILE)kmalloc( sizeof(CPSAIO_DRV_FILE) , GFP_KERNEL );
-	
 	dev = (PCPSAIO_DRV_FILE)filp->private_data;
+	inode->i_private = dev;
 
 	dev->node = iminor( inode );
 	
@@ -1311,13 +1622,17 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	if( allocMem != NULL ){
 		dev->baseAddr = allocMem;
 	}else{
-		return -EBUSY;
+		iRet = -ENOMEM;
+		goto NOT_IOMEM_ALLOCATION;
 	}
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;
 	do{
-		if( cps_aio_data[cnt].ProductNumber == -1 ) break;
+		if( cps_aio_data[cnt].ProductNumber == -1 ) {
+			iRet = -EFAULT;
+			goto NOT_FOUND_AIO_PRODUCT;
+		}
 		if( cps_aio_data[cnt].ProductNumber == product_id ){
 			dev->data = cps_aio_data[cnt];
 			break;
@@ -1331,17 +1646,43 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 		printk(" request_irq failed.(%x) \n",ret);
 	}
 
+	// spin_lock initialize
+	spin_lock_init( &dev->lock );
+
 	dev->ref = 1;
 
 	return 0;
+NOT_FOUND_AIO_PRODUCT:
+	cps_common_mem_release( dev->localAddr,
+		0xF0,
+		dev->baseAddr ,
+		CPS_COMMON_MEM_REGION);
+
+NOT_IOMEM_ALLOCATION:
+	kfree( dev );
+
+	return iRet;
 }
 
+/**
+	@~English
+	@brief This function is called by close user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はCLOSE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/
 static int cpsaio_close(struct inode * inode, struct file *filp ){
 
 	PCPSAIO_DRV_FILE dev;
 
-	if (	filp->private_data != (PCPSAIO_DRV_FILE)NULL ){
-		dev =  (PCPSAIO_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSAIO_DRV_FILE)NULL ){
+		dev =  (PCPSAIO_DRV_FILE)inode->i_private;
 		dev->ref--;
 		if( dev->ref == 0 ){
 
@@ -1354,7 +1695,8 @@ static int cpsaio_close(struct inode * inode, struct file *filp ){
 				
 			kfree( dev );
 			
-			dev = NULL;
+			inode->i_private = (PCPSAIO_DRV_FILE)NULL;
+			filp->private_data = (PCPSAIO_DRV_FILE)NULL;
 		}
 	}
 	return 0;
@@ -1362,16 +1704,27 @@ static int cpsaio_close(struct inode * inode, struct file *filp ){
 }
 
 
-
+/**
+	@struct cpsaio_fops
+	@brief CPSAIO file operations
+**/
 static struct file_operations cpsaio_fops = {
-		.owner = THIS_MODULE,
-		.open = cpsaio_open,
-		.release = cpsaio_close,
-		.read = cpsaio_get_sampling_data_ai,
-		.write = cpsaio_set_sampling_data_ao,
-		.unlocked_ioctl = cpsaio_ioctl,
+		.owner = THIS_MODULE,	///< owner's name
+		.open = cpsaio_open,	///< open
+		.release = cpsaio_close,	///< close
+		.read = cpsaio_get_sampling_data_ai,	///< write
+		.write = cpsaio_set_sampling_data_ao,	///< read
+		.unlocked_ioctl = cpsaio_ioctl,	/// I/O Control
 };
 
+/**
+	@~English
+	@brief cpsaio init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cpsaio 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsaio_init(void)
 {
 
@@ -1379,7 +1732,6 @@ static int cpsaio_init(void)
 	int ret = 0;
 	int major;
 	int cnt;
-
 	struct device *devlp = NULL;
 
 	// CPS-MCS341 Device Init
@@ -1434,6 +1786,12 @@ static int cpsaio_init(void)
 	return 0;
 }
 
+/**
+	@~English
+	@brief cpsaio exit function.
+	@~Japanese
+	@brief cpsaio 終了関数.
+**/
 static void cpsaio_exit(void)
 {
 
