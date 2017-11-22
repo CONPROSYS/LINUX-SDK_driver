@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Common Parameter
+KERNEL_VERSION=$(uname -r)
+DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1" "$2" "$3}') 
+CPU_TYPE=$(uname -p)
+CPU_MODELNAME=$(cat /proc/cpuinfo | grep "model name")
+MEM_CAPA=$(cat /proc/meminfo | grep "MemTotal" | awk -F: '{ print $2}' )
+PC_NAME=$(sudo dmidecode -s system-product-name)
+
+# API-CAP(W32) Parameter
+#APICAP_VERSION=$(sudo find / -name readmee.txt -exec cat {} \; | grep "CPU-CAxx(FIT)GY Library")
+
+clear
+echo '*************** Machine Data ***************** ' 
+echo ' Distribution   :' $DISTRIBUTION_TYPE
+echo ' kernel version :' $KERNEL_VERSION
+echo ' cpu type       :' $CPU_TYPE
+echo ' cpu' $CPU_MODELNAME
+echo ' Memory         :' $MEM_CAPA
+echo ' PC name        :' $PC_NAME
+echo '********************************************** '
+echo
+echo
+echo
+
+echo "*************** Machine Data ***************** " > report.txt
+echo " Distribution   : $DISTRIBUTION_TYPE " >> report.txt
+echo " kernel version : $KERNEL_VERSION " >> report.txt
+echo " cpu type       : $CPU_TYPE " >> report.txt
+echo " cpu $CPU_MODELNAME " >> report.txt
+echo " Memory         : $MEM_CAPA " >> report.txt
+echo " PC name        : $PC_NAME " >> report.txt
+echo "********************************************** " >> report.txt
+
