@@ -2,10 +2,6 @@ obj-m := cpscnt.o
 
 PWD       := $(shell pwd)
 
-#cross build 
-CROSS_COMPILE=arm-linux-gnueabi-
-ARCH=arm
-
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""
 TARGET_ROOTFS   := rootfs
@@ -29,10 +25,10 @@ endif
 EXTRA_SYMBOL	:= $(PWD)/../system/Module.symvers
 
 all:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) KBUILD_EXTRA_SYMBOLS=$(EXTRA_SYMBOL) M=$(PWD) modules
+	$(MAKE) -C $(KERNELDIR) KBUILD_EXTRA_SYMBOLS=$(EXTRA_SYMBOL) M=$(PWD) modules
 
 modules_install:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules_install INSTALL_MOD_PATH=${CPS_SDK_INSTALL_FULLDIR}/$(TARGET_ROOTFS)
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install 
 
 release_copy:
 	cp -p ./cpscnt.ko $(CPS_DRIVER_REELASE_DIR)

@@ -23,14 +23,24 @@
 
 #include <linux/slab.h>
 
-#include "cps_common_io.h"
-#include "cps.h"
-#include "cps_ids.h"
-#include "cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
 
-#include "cpsaio.h"
+ #include "../include/cpsaio.h"
 
-#define DRV_VERSION	"1.0.10"
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+
+ #include "../../include/cpsaio.h"
+
+#endif
+#define DRV_VERSION	"1.0.11"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -96,7 +106,7 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_IOCTL(fmt...)	do { } while (0)
 #endif
 
-#if 1
+#if 0
 #define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
@@ -742,6 +752,33 @@ void cpsaio_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 		contec_mcs341_device_extension_value_set(dev , cate, cnt, val);
 	}
 
+}
+/***** Device Name function ********/
+
+/**
+	@~English
+	@brief This function get Device Name with Analog I/O device.
+	@param node : device node
+	@param devName : Device Name
+	@return true : 0
+	@~Japanese
+	@brief アナログ機器のデバイス名を取得する関数
+	@param node : ノード
+	@param devName : デバイス名
+	@return 成功 : 0
+**/
+static long cpsaio_get_aio_devname( int node, unsigned char devName[] )
+{
+	int product_id, cnt;
+	product_id = contec_mcs341_device_productid_get(node);
+
+	for(cnt = 0; cps_aio_data[cnt].ProductNumber != -1; cnt++){
+		if( cps_aio_data[cnt].ProductNumber == product_id ){
+			strcpy( devName, cps_aio_data[cnt].Name );
+			return 0;
+		}
+	}
+	return 1;
 }
 
 
@@ -1698,7 +1735,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					break;
-
+// Other ...
 		case IOCTL_CPSAIO_GET_DRIVER_VERSION:
 			// Ver.1.0.8 Add
 			// Ver.1.0.9 Modify using from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg
@@ -1716,6 +1753,21 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 				return -EFAULT;
 			}
 			break;
+		case IOCTL_CPSAIO_GET_DEVICE_NAME:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+					return -EFAULT;
+				}
+				if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
+					return -EFAULT;
+				}
+				spin_lock_irqsave(&dev->lock, flags);
+				cpsaio_get_aio_devname( dev->node , ioc_str.str );
+				spin_unlock_irqrestore(&dev->lock, flags);
+
+				if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
+					return -EFAULT;
+				}
+				break;
 
 	}
 	return 0;

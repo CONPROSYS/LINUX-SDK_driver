@@ -22,10 +22,17 @@
 #define CPSCOM_IRQ			7
 #define SERIAL_IO_CPS 			128
 
-#include "cps_common_io.h"
-#include "cps.h"
-#include "cps_ids.h"
-#include "cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+#endif
 
 #define UPIO_CPS			SERIAL_IO_CPS
 #define PORT_CPS16550A		192

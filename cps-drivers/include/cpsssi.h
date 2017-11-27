@@ -137,7 +137,7 @@ struct cpsssi_direct_command_arg{
 #define IOCTL_CPSSSI_SET_SENSE_RESISTANCE	_IOW(CPSSSI_MAGIC, 5, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_SET_CHANNEL	_IOW(CPSSSI_MAGIC, 6, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_START	_IOW(CPSSSI_MAGIC, 7, struct cpsssi_ioctl_arg)
-//#define IOCTL_CPSSSI_STOP	_IOW(CPSSSI_MAGIC, 8)
+#define IOCTL_CPSSSI_GET_DEVICE_NAME	_IOR(CPSSSI_MAGIC, 8, struct cpsssi_ioctl_string_arg)
 #define IOCTL_CPSSSI_WRITE_EEPROM_SSI _IOW(CPSSSI_MAGIC, 9, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_READ_EEPROM_SSI _IOR(CPSSSI_MAGIC, 10, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_CLEAR_EEPROM _IO(CPSSSI_MAGIC, 11 )

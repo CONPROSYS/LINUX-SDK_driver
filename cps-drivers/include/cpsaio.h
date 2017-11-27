@@ -169,7 +169,7 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_INSTATUS	_IOR(CPSAIO_MAGIC, 5, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_OUTSTATUS	_IOR(CPSAIO_MAGIC, 6, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SETCHANNEL_AI	_IOW(CPSAIO_MAGIC, 7, struct cpsaio_ioctl_arg)
-//#define IOCTL_CPSAIO_SETSAMPNUM_AI	_IOW(CPSAIO_MAGIC, 8, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_GET_DEVICE_NAME	_IOR(CPSAIO_MAGIC, 8, struct cpsaio_ioctl_string_arg)
 #define IOCTL_CPSAIO_SETTRANSFER_MODE_AI	_IOW(CPSAIO_MAGIC, 9, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_START_AI	_IO(CPSAIO_MAGIC, 10)
 #define IOCTL_CPSAIO_STOP_AI	_IO(CPSAIO_MAGIC, 11)

@@ -30,14 +30,25 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 
-#include "cps_common_io.h"
-#include "cps.h"
-#include "cps_ids.h"
-#include "cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
 
-#include "cpsssi.h"
+ #include "../include/cpsssi.h"
 
-#define DRV_VERSION	"1.0.10"
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+
+ #include "../../include/cpsssi.h"
+
+#endif
+
+#define DRV_VERSION	"1.0.11"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -844,6 +855,32 @@ unsigned long cpsssi_4p_addsub_channeldata_offset( unsigned int node, unsigned i
 
 }
 
+/**
+	@~English
+	@brief This function get Device Name with Sensor I/O device.
+	@param node : device node
+	@param devName : Device Name
+	@return true : 0
+	@~Japanese
+	@brief センサ入力機器のデバイス名を取得する関数
+	@param node : ノード
+	@param devName : デバイス名
+	@return 成功 : 0
+**/
+static long cpsssi_get_ssi_devname( int node, unsigned char devName[] )
+{
+	int product_id, cnt;
+	product_id = contec_mcs341_device_productid_get(node);
+
+	for(cnt = 0; cps_ssi_data[cnt].ProductNumber != -1; cnt++){
+		if( cps_ssi_data[cnt].ProductNumber == product_id ){
+			strcpy( devName, cps_ssi_data[cnt].Name );
+			return 0;
+		}
+	}
+	return 1;
+}
+
 /***** Interrupt function *******************************/
 static const int AM335X_IRQ_NMI=7;
 
@@ -1243,6 +1280,21 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					return -EFAULT;
 				}
 				break;
+			case IOCTL_CPSSSI_GET_DEVICE_NAME:
+						if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					cpsssi_get_ssi_devname( dev->node , ioc_str.str );
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
+						return -EFAULT;
+					}
+					break;
 	}
 
 	return 0;

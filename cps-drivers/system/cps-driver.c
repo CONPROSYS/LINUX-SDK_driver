@@ -37,16 +37,22 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.14"
+#define DRV_VERSION	"1.1.0"
 
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
+MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
 
-#include "cps_common_io.h"
-#include "cps.h"
-#include "cps_ids.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+#endif
 
 /**
  @~English
@@ -62,7 +68,7 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_INITMEMORY(fmt...)	do { } while (0)
 #endif
 
-#if 0 
+#if 0
 #define DEBUG_EXITMEMORY(fmt...)        printk(fmt)
 #else
 #define DEBUG_EXITMEMORY(fmt...)        do { } while (0)
@@ -169,17 +175,23 @@ static unsigned int ledState[CPS_MCS341_MAX_LED_ARRAY_NUM] ={0};
 // 2016.02.19 GPIO-87 Push/Pull Test Mode 
 static unsigned int reset_button_check_mode = 0;///< gpio-87 test mode ( 1...Enable, 0... Disable )
 module_param(reset_button_check_mode, uint, 0644 );
+MODULE_PARM_DESC(reset_button_check_mode, "Reset Button changes GPIO Mode.( 1:Enable 0:Disable )");
 
 // 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add (Ver.1.0.7)
 static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
 module_param(child_unit, uint, 0644 );
+MODULE_PARM_DESC(child_unit, "Enable Initialize Child Unit.[ 1:SL8084T 2:RS422A/485 3:CMM-920GP2 4:HL8548 5:ES920LR]");
 
-// 2016.02.19 GPIO-87 Push/Pull Test Mode 
-static unsigned int watchdog_timer_msec = 0;///< gpio-87 test mode ( 0..None, otherwise 0... watchdog on )
+// 2016.02.19 watchdog_timer (Not MCS341 Series Hardware)
+static unsigned int watchdog_timer_msec = 0;///< watchdog mode ( 0..None, otherwise:watchdog on )
 //module_param(watchdog_timer_msec, uint, 0644 );
+//MODULE_PARM_DESC(watchdog_timer_msec, "Enable Watchdog Mode.( 0..None, otherwise:watchdog on )");
+
 
 static unsigned char deviceNumber;		///< device number
 
+// 2017.02.14 child_unit enable
+static unsigned int child_unit_enable = 0;
 
 static unsigned char mcs341_deviceInterrupt[6];	///< device interrupt flag
 
@@ -528,12 +540,12 @@ static unsigned char contec_mcs341_controller_setDioDirection( int dioNum , int 
 
 	unsigned char valb;
 
-	if ( dioNum >= 4 && dioNum < 0 ) return 1;
+	if ( dioNum >= 4 || dioNum < 0 ) return 1;
 
 	if ( isDir < 0 || 1 < isDir )	return 2;
 	contec_mcs341_inpb(CPS_CONTROLLER_MCS341_DIO_DIRECTION_ADDR, &valb);
 
-	valb = ( valb & 0xF0 ) | CPS_MCS341_DIO_DIRECTION_SET( isDir, dioNum );
+	valb = ( valb & ~(0x01 << dioNum) ) | CPS_MCS341_DIO_DIRECTION_SET( dioNum, isDir );
 
 	contec_mcs341_outb(CPS_CONTROLLER_MCS341_DIO_DIRECTION_ADDR, valb);
 	return 0;
@@ -672,9 +684,25 @@ static unsigned char contec_mcs341_controller_getSystemStatus(void)
 	unsigned char valb = 0;
 	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMSTATUS_RADDR, &valb );
 	DEBUG_SYSTEM_STATUS_READ_REG(KERN_INFO"mcs341_systemstatus_read_reg %x \n", valb);
-	return valb;
+	return (valb & 0x0F);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getSystemStatus);
+
+/**
+	@~English
+	@brief MCS341 Controller's gets dip switch. (4bit)
+	@~Japanese
+	@brief MCS341 ControllerのDIP-Switchを取得する関数 (4bit)
+**/
+static unsigned char contec_mcs341_controller_getDipSwitch(void)
+{
+	unsigned char valb = 0;
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMSTATUS_RADDR, &valb );
+	valb = CPS_MCS341_SYSTEMSTATUS_DIPSWITCH_ALL(valb);
+	DEBUG_SYSTEM_STATUS_READ_REG(KERN_INFO"mcs341_dip_switch_read %x \n", valb);
+	return valb;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDipSwitch);
 
 
 /**
@@ -749,6 +777,51 @@ static unsigned char contec_mcs341_controller_getInterrupt( int GroupNum ){
 	return CPS_MCS341_INTERRUPT_GROUP_GET(GroupNum, valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getInterrupt);
+
+/**
+	@~English
+	@brief MCS341 Controller's Digital I/O Direction.
+	@param dioNum  : Digital I/O Number ( from 0 to 3 )
+	@param isDir : 0...Input , 1...Output
+	@~Japanese
+	@brief MCS341 Controllerのデジタル入出力の方向を取得する関数
+	@param dioNum  : デジタルビット番号( 0 から 3まで )
+	@param isDir : 0...入力,　1...出力
+**/
+static unsigned char contec_mcs341_controller_getDioDirection( int dioNum , int *isDir ){
+
+	unsigned char valb;
+
+	if ( dioNum >= 4 || dioNum < 0 ) return 1;
+
+	contec_mcs341_inpb(CPS_CONTROLLER_MCS341_DIO_DIRECTION_ADDR, &valb);
+
+	*isDir = (int)(CPS_MCS341_DIO_DIRECTION_GET( dioNum, valb ) >> dioNum);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDioDirection);
+
+/**
+	@~English
+	@brief MCS341 Controller's Digital I/O Filter.
+	@param FilterNum  : Digital Filter Number
+	@~Japanese
+	@brief MCS341 Controllerのデジタル入出力フィルタを取得する関数
+	@param FilterNum  : デジタルフィルタ番号
+**/
+static unsigned char contec_mcs341_controller_getDioFilter( int *FilterNum ){
+
+	unsigned char valb;
+
+	contec_mcs341_inpb(CPS_CONTROLLER_MCS341_DIO_DIRECTION_ADDR, &valb);
+
+	*FilterNum = CPS_MCS341_DIO_FILTER_GET(valb);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDioFilter);
+
 /**
 	@~English
 	@brief MCS341 Controller's Digital Echo Output Values.
@@ -788,6 +861,61 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 
 /**
 	@~English
+	@brief This function is alloc/release CPS-Device memory by MCS341.
+	@param isAlloc : 0... release, 1... alloc
+	@par This function is sub-routine.
+	@~Japanese
+	@brief MCS341 Device Memoryのalloc/releaseを行うための関数。
+	@param isUsedDelay : 0... release, 1... alloc
+	@par この関数は内部関数です。
+	@note Ver.1.0.15 に作成
+**/
+static int __contec_mcs341_device_memory( int isAlloc )
+{
+	void __iomem *allocaddr;
+	int iRet = 0;
+	int cnt;
+
+	if( deviceNumber != 0x3f && deviceNumber != 0 ){
+		for( cnt = 0; cnt < deviceNumber ; cnt++ ){
+			if( isAlloc ){
+				DEBUG_INITMEMORY(KERN_INFO " cps-system : device number : %d \n", deviceNumber );
+				if( !map_devbaseaddr[cnt] ){
+					allocaddr =
+							cps_common_mem_alloc( (0x08000000 + (cnt + 1) * 0x100 ),
+							0x10,
+							"cps-mcs341-common-dev",
+	//						CPS_COMMON_MEM_NONREGION	 );
+							CPS_COMMON_MEM_REGION );
+					if( !allocaddr ){
+						iRet = 1;
+					}else{
+						map_devbaseaddr[cnt] = allocaddr;
+					}
+				}
+
+				if( map_devbaseaddr[cnt] ){
+					DEBUG_INITMEMORY(KERN_INFO "cps-system: device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+				}
+
+			}else{
+				DEBUG_EXITMEMORY(KERN_INFO "cps-system: Release Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+				cps_common_mem_release( (0x08000000 + (cnt + 1) * 0x100 ),
+						0x10,
+						map_devbaseaddr[cnt],
+//					CPS_COMMON_MEM_NONREGION );
+						CPS_COMMON_MEM_REGION	 );
+				DEBUG_EXITMEMORY(KERN_INFO "cps-system: Free Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+				map_devbaseaddr[cnt] = NULL; // Ver.1.0.15
+				DEBUG_EXITMEMORY(KERN_INFO "cps-system: Free After device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+			}
+		}
+	}
+	return iRet;
+}
+
+/**
+	@~English
 	@brief This function is completed by MCS341 Device ID-Sel.
 	@param isUsedDelay : 0... sleep, 1... delay
 	@par This function is sub-routine of Initialize.
@@ -795,24 +923,15 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 	@brief MCS341 ControllerのID-SELを完了させるための関数。
 	@param isUsedDelay : 0... sleep, 1... delay
 	@par この関数は内部関数です。初期化を完了させるためのサブルーチンになります。
+	@note Ver.1.0.15以降 メモリの作成部分を分離(ここでは行わない)
 **/
 //static void __contec_mcs341_device_idsel_complete( void ){
 static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 	int cnt;
 	int nInterrupt;
 
-	deviceNumber = contec_mcs341_controller_getDeviceNum();
-	DEBUG_INITMEMORY(KERN_INFO " cps-system : device number : %d \n", deviceNumber );
 	if( deviceNumber != 0x3f && deviceNumber != 0 ){
-		for( cnt = 0; cnt < deviceNumber ; cnt++ ){
-			 map_devbaseaddr[cnt] = 
-				cps_common_mem_alloc( (0x08000000 + (cnt + 1) * 0x100 ),
-				0x10,
-				"cps-mcs341-common-dev",
-				CPS_COMMON_MEM_NONREGION	 );
-				DEBUG_INITMEMORY(KERN_INFO "cps-system: device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
-		}
-		// 
+
 		cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
 		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
 
@@ -820,6 +939,7 @@ static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 		for( cnt = 0; cnt < nInterrupt; cnt++ )
 			contec_mcs341_controller_setInterrupt( 0 , cnt );
 	}
+
 }
 
 /**
@@ -866,6 +986,8 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 		contec_mcs341_controller_setFpgaResetReg();
 	}
 
+
+
 	if( CPS_MCS341_SYSTEMSTATUS_BUSY( valb ) ){
 
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
@@ -884,7 +1006,16 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			CPS-MCS341 must wait 1 msec.
 		*/ 		
 		contec_cps_micro_delay_sleep( (1 * USEC_PER_MSEC), isUsedDelay );
+
+		//Memory Initialize
+		deviceNumber = contec_mcs341_controller_getDeviceNum();
+		DEBUG_INITMEMORY(KERN_INFO " cps-system : device number : %d \n", deviceNumber );
+		if( __contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_ALLOCATE ) ){
+			return -ENOMEM;
+		}
+		/* idsel complete */
 		__contec_mcs341_device_idsel_complete(isUsedDelay);
+
 	/*
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_RESET_WADDR) ,
 			CPS_MCS341_RESET_SET_IDSEL_COMPLETE );
@@ -904,6 +1035,13 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
 		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END)  );
+	}else{
+		//Memory Initialize
+		deviceNumber = contec_mcs341_controller_getDeviceNum();
+		DEBUG_INITMEMORY(KERN_INFO " cps-system : device number : %d \n", deviceNumber );
+		if( __contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_ALLOCATE ) ){
+			return -ENOMEM;
+		}
 	}
 	/*
 		When many devices was connected more than 15, getDeviceNumber gets 14 values.
@@ -941,6 +1079,29 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int childType, int isUsedDelay)
 {
 	
+	DEBUG_MODULE_PARAM(KERN_INFO"child unit %d\n", childType );
+
+	// init pin mode
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_INPUT,
+		CPS_MCS341_SETPINMODE_3G4_INPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
+		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
+	);
+
+	if( child_unit != CPS_CHILD_UNIT_NONE ){
+
+		// POWER ON ( 24V <USB> )
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+		contec_mcs341_controller_setSystemInit();
+		// Wait ( 5sec )
+		contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
+
+		// RESET
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+		contec_mcs341_controller_setSystemInit();
+	}
+
 	switch( childType ){
 	case CPS_CHILD_UNIT_INF_MC341B_00:		// CPS-MCS341G-DS1-111
 		contec_mcs341_controller_setPinMode(
@@ -978,25 +1139,9 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 		break;
 	case CPS_CHILD_UNIT_NONE:
 	default:
-		contec_mcs341_controller_setPinMode(
-			CPS_MCS341_SETPINMODE_3G3_INPUT,
-			CPS_MCS341_SETPINMODE_3G4_INPUT,
-			CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
-			CPS_MCS341_SETPINMODE_RTSSUB_INPUT
-		);
 		//break;
 		return 0;
 	}
-
-	// POWER ON
-	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
-	contec_mcs341_controller_setSystemInit();
-	// Wait ( 5sec )
-	contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
-	// RESET
-	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
-	contec_mcs341_controller_setSystemInit();
-
 
 	// GPIO(0_23) High Settings
 	switch( childType ){
@@ -1007,6 +1152,8 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 		contec_mcs341_controller_setSystemInit();
 		break;
 	}
+
+	child_unit_enable = 1;
 
 	return 0;
 }
@@ -1026,6 +1173,76 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 	return _contec_mcs341_controller_cpsChildUnitInit( childType, 0 );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
+
+/**
+	@~English
+	@brief This function is CPS-Child Devices Initialize.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int _contec_mcs341_controller_cpsChildUnitExit(unsigned int childType, int isUsedDelay)
+{
+
+	DEBUG_MODULE_PARAM(KERN_INFO"child unit %d\n", childType );
+
+	// GPIO(0_23) Low Settings
+	switch( childType ){
+	case CPS_CHILD_UNIT_INF_MC341B_40:
+		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+		contec_cps_micro_delay_sleep( 100 * USEC_PER_MSEC , isUsedDelay ); // 100 msec wait
+		contec_mcs341_controller_setSystemInit();
+		break;
+	}
+
+	if( child_unit != CPS_CHILD_UNIT_NONE ){
+
+		// RESET ON
+		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+		contec_mcs341_controller_setSystemInit();
+
+		// Wait ( 5sec )
+		contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
+
+		// POWER OFF ( 24V <USB> )
+		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+		contec_mcs341_controller_setSystemInit();
+
+	}
+
+	// init pin mode
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_INPUT,
+		CPS_MCS341_SETPINMODE_3G4_INPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
+		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
+	);
+
+	child_unit_enable = 0;
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This wrapper function is CPS-Child Devices Exit.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を終了する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int contec_mcs341_controller_cpsChildUnitExit(unsigned int childType)
+{
+	return _contec_mcs341_controller_cpsChildUnitExit( childType, 0 );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitExit);
+
+
 
 //-------------------------- Timer Function ------------------------
 
@@ -1050,7 +1267,7 @@ void mcs341_controller_timer_function(unsigned long arg)
 	// Err LED 追加 Ver.1.0.8
 	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
 
-		if( ledEnable[cnt] ){
+		if( ledEnable[cnt] == 2 ){
 			if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
 				ledState[cnt] ^= 0x01;	// 点滅
 				contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
@@ -1097,9 +1314,13 @@ void mcs341_controller_timer_function(unsigned long arg)
 	if( !shutdown_sequence ){
 		/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
 		if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:FPGA re-init sequence!\n");
 			// restarting initialize !!
-			_contec_mcs341_controller_cpsDevicesInit( 1 );
-			_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
+			mcs341_systeminit_reg = 0;
+			if( _contec_mcs341_controller_cpsDevicesInit( 1 ) == 0 ){
+				_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
+			}
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:last status %x \n",mcs341_systeminit_reg);
 		}
 	}else{
 			// After Shutdown /Reboot sequence
@@ -1747,6 +1968,662 @@ static unsigned char contec_mcs341_device_serial_channel_get( unsigned long base
 EXPORT_SYMBOL_GPL(contec_mcs341_device_serial_channel_get);
 
 
+// DEVICE ATTR
+// 2017.02.14
+// dio0_filter, dio0_direction, dio0_do_value, dio0_di_value
+// child_unit_enable, child_unit_number, child_unit_name
+// led_status1, led_status2, led_error
+// id, switch
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status1 Led をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_led_status1_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	switch( buf[0] ){
+	case '0':// OFF
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] = 0;
+		break;
+	case '1':// ON
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] = 1;
+		break;
+	case '2':// BLINK
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] = 2;
+		break;
+	}
+
+	if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] < 2 )
+		contec_mcs341_controller_setLed(CPS_MCS341_LED_ST1_BIT, ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1]);
+
+	return strlen(buf);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status2 Led をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_led_status2_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	switch( buf[0] ){
+	case '0':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2] = 0;
+		break;
+	case '1':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2] = 1;
+		break;
+	case '2':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2] = 2;
+		break;
+	}
+
+	if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2] < 2 )
+		contec_mcs341_controller_setLed(CPS_MCS341_LED_ST2_BIT, ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2]);
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 ERROR Led をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_led_error_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	switch( buf[0] ){
+	case '0':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 0;
+		break;
+	case '1':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 1;
+		break;
+	case '2':
+		ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 2;
+		break;
+	}
+
+	if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] < 2 )
+		contec_mcs341_controller_setLed(CPS_MCS341_LED_ERR_BIT, ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR]);
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 子基板の初期化/終了 をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_child_unit_enable_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+
+	if( child_unit != CPS_CHILD_UNIT_NONE ){
+		if( buf[0] == '0' && child_unit_enable == 1 )
+			contec_mcs341_controller_cpsChildUnitExit( child_unit );
+		else if( buf[0] == '1' && child_unit_enable == 0 )
+			contec_mcs341_controller_cpsChildUnitInit( child_unit );
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 子基板の番号をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_child_unit_number_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned long ulVal;
+	int ret;
+
+	ret = kstrtoul(buf, 10, &ulVal);
+
+	if( !ret ){
+		if( child_unit_enable == 1 )
+			contec_mcs341_controller_cpsChildUnitExit( child_unit );
+		child_unit = ulVal;
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 DIOの入力/出力方向 をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_dio0_direction_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned long ulVal;
+	int ret;
+	int cnt = 0;
+	ret = kstrtoul(buf, 16, &ulVal);
+
+	if( !ret ){
+		for(cnt = 0;cnt < 4;cnt ++ ){
+			contec_mcs341_controller_setDioDirection(cnt ,
+					(unsigned char) (( ulVal & (0x01 << cnt) ) >> cnt) );
+		}
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 DIOのディジタルフィルタ をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_dio0_filter_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned char bVal;
+	int ret;
+	ret = kstrtou8(buf, 16, &bVal);
+
+	if( !ret ){
+		contec_mcs341_controller_setDioFilter(bVal);
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 DIOの DO をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_dio0_do_value_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned char bVal;
+	int ret;
+
+	ret = kstrtou8(buf, 16, &bVal);
+
+	if( !ret ){
+		contec_mcs341_controller_setDoValue(bVal);
+	}
+
+	return strnlen(buf, count);
+}
+
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status1 Led をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_led_status1_show(struct device_driver *drvf, char *buf )
+{
+//	unsigned char valb;
+
+//	valb = (CPS_MCS341_LED_ST1(contec_mcs341_controller_getLed() ) >> CPS_MCS341_ARRAYNUM_LED_ST1);
+
+//	ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] = valb;
+
+	return sprintf(buf,"%d", ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1]);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status2 Led をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_led_status2_show(struct device_driver *drvf, char *buf )
+{
+//	unsigned char valb;
+
+//	valb = (CPS_MCS341_LED_ST2(contec_mcs341_controller_getLed() ) >> CPS_MCS341_ARRAYNUM_LED_ST2);
+
+//	ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2] = valb;
+
+	return sprintf(buf,"%d", ledEnable[CPS_MCS341_ARRAYNUM_LED_ST2]);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status2 Led をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_led_error_show(struct device_driver *drvf, char *buf )
+{
+//	unsigned char valb;
+
+//	valb = (CPS_MCS341_LED_ERR(contec_mcs341_controller_getLed() ) >> CPS_MCS341_ARRAYNUM_LED_ERR);
+
+//	ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = valb;
+
+	return sprintf(buf,"%d", ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR]);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 子基板の 初期化/終了をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_child_unit_enable_show(struct device_driver *drvf, char *buf )
+{
+	return sprintf(buf,"%d", child_unit_enable);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 子基板の 番号をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_child_unit_number_show(struct device_driver *drvf, char *buf )
+{
+	return sprintf(buf,"%d", child_unit);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 dio0の入力/出力方向をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_dio0_direction_show(struct device_driver *drvf, char *buf )
+{
+	unsigned long ulVal = 0;
+	unsigned char bVal = 0;
+	int cnt = 0;
+
+	for(cnt = 0;cnt < 4;cnt ++ ){
+		contec_mcs341_controller_getDioDirection(cnt , (int *)&bVal );
+		ulVal |= (bVal << cnt);
+	}
+
+	return sprintf(buf,"%lx", ulVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 dio0の入力/出力方向をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_dio0_filter_show(struct device_driver *drvf, char *buf )
+{
+	int iVal = 0;
+
+	contec_mcs341_controller_getDioFilter(&iVal);
+
+	return sprintf(buf,"%x", iVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 dio0の入力値をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_dio0_di_value_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getDiValue();
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 dio0の出力値(エコーバック)をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_dio0_do_value_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getDoEchoValue();
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 ロータリIDをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_rotary_id_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_ROTARYSW_RADDR, &bVal );
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 DIP-SWITCHをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_dip_switch_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getDipSwitch();
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Device_Numberをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_device_number_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getDeviceNum();
+
+	return sprintf(buf,"%d", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Boardバージョンをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_product_version_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getProductVersion();
+
+	return sprintf(buf,"%d", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 FPGAバージョンをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_fpga_version_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = contec_mcs341_controller_getFpgaVersion();
+
+	return sprintf(buf,"%d", bVal);
+}
+
+
+static DRIVER_ATTR(led_status1, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_led_status1_show, contec_mcs341_led_status1_store);
+static DRIVER_ATTR(led_status2, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_led_status2_show, contec_mcs341_led_status2_store);
+static DRIVER_ATTR(led_error, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_led_error_show, contec_mcs341_led_error_store);
+static DRIVER_ATTR(child_unit_enable, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH ,
+		contec_mcs341_child_unit_enable_show, contec_mcs341_child_unit_enable_store);
+static DRIVER_ATTR(child_unit_number, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_child_unit_number_show, contec_mcs341_child_unit_number_store);
+static DRIVER_ATTR(dio0_direction, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_dio0_direction_show, contec_mcs341_dio0_direction_store);
+static DRIVER_ATTR(dio0_filter, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_dio0_filter_show, contec_mcs341_dio0_filter_store);
+static DRIVER_ATTR(dio0_do_value, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_dio0_do_value_show, contec_mcs341_dio0_do_value_store);
+static DRIVER_ATTR(dio0_di_value, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_dio0_di_value_show, NULL );
+static DRIVER_ATTR(id, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_rotary_id_show, NULL );
+static DRIVER_ATTR(switch, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_dip_switch_show, NULL );
+static DRIVER_ATTR(stack_devices, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_device_number_show, NULL );
+static DRIVER_ATTR(product_revision, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_product_version_show, NULL );
+static DRIVER_ATTR(fpga_revision, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_fpga_version_show, NULL );
+
+/**
+	@struct contec_mcs341_driver
+	@~English
+	@brief structure contec_mcs341_driver
+	@~Japanese
+	@brief MCS341ドライバ構造体
+**/
+static struct platform_driver contec_mcs341_driver = {
+		.driver = {
+				.name = "cps-driver",
+		},
+};
+
+
+/**
+	@~English
+	@brief This function create device file.
+	@param drvp : platform_driver structure
+	@return Success : 0 , Failed : otherwise
+	@~Japanese
+	@brief MCS341　デバイスファイルを作成する関数
+	@param drvp : platform_driver 構造体
+	@return 成功:0 ,失敗：0以外
+**/
+static int contec_mcs341_create_driver_sysfs(struct platform_driver *drvp){
+
+	int err;
+
+	err = driver_create_file(&drvp->driver, &driver_attr_led_status1);
+	err |= driver_create_file(&drvp->driver, &driver_attr_led_status2);
+	err |= driver_create_file(&drvp->driver, &driver_attr_led_error);
+	err |= driver_create_file(&drvp->driver, &driver_attr_child_unit_enable);
+	err |= driver_create_file(&drvp->driver, &driver_attr_child_unit_number);
+	err |= driver_create_file(&drvp->driver, &driver_attr_dio0_direction);
+	err |= driver_create_file(&drvp->driver, &driver_attr_dio0_filter);
+	err |= driver_create_file(&drvp->driver, &driver_attr_dio0_do_value);
+	err |= driver_create_file(&drvp->driver, &driver_attr_dio0_di_value);
+	err |= driver_create_file(&drvp->driver, &driver_attr_id);
+	err |= driver_create_file(&drvp->driver, &driver_attr_switch);
+	err |= driver_create_file(&drvp->driver, &driver_attr_stack_devices);
+	err |= driver_create_file(&drvp->driver, &driver_attr_product_revision);
+	err |= driver_create_file(&drvp->driver, &driver_attr_fpga_revision);
+
+	return err;
+}
+
+/**
+	@~English
+	@brief This function create device file.
+	@param drvp : platform_driver structure
+	@return Success : 0 , Failed : otherwise
+	@~Japanese
+	@brief MCS341　デバイスファイルを削除する関数
+	@param drvp : platform_driver 構造体
+	@return 成功:0 ,失敗：0以外
+**/
+static void contec_mcs341_remove_driver_sysfs(struct platform_driver *drvp)
+{
+	driver_remove_file(&drvp->driver, &driver_attr_led_status1);
+	driver_remove_file(&drvp->driver, &driver_attr_led_status2);
+	driver_remove_file(&drvp->driver, &driver_attr_led_error);
+	driver_remove_file(&drvp->driver, &driver_attr_child_unit_enable);
+	driver_remove_file(&drvp->driver, &driver_attr_child_unit_number);
+	driver_remove_file(&drvp->driver, &driver_attr_dio0_direction);
+	driver_remove_file(&drvp->driver, &driver_attr_dio0_filter);
+	driver_remove_file(&drvp->driver, &driver_attr_dio0_do_value);
+	driver_remove_file(&drvp->driver, &driver_attr_dio0_di_value);
+	driver_remove_file(&drvp->driver, &driver_attr_id);
+	driver_remove_file(&drvp->driver, &driver_attr_switch);
+	driver_remove_file(&drvp->driver, &driver_attr_stack_devices);
+	driver_remove_file(&drvp->driver, &driver_attr_product_revision);
+	driver_remove_file(&drvp->driver, &driver_attr_fpga_revision);
+}
+
+
+
 /**
  @~English
  @name Initialize and Exit Functions
@@ -1781,9 +2658,7 @@ static int contec_mcs341_controller_init(void)
 
 	if( (ret = contec_mcs341_controller_cpsDevicesInit() ) == 0 ){
 
-		DEBUG_MODULE_PARAM("child unit %d\n", child_unit );
-
-		contec_mcs341_controller_cpsChildUnitInit(child_unit);
+			contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
 		//2016.02.17 timer add Ver.1.0.7
 		init_timer(&mcs341_timer);
@@ -1792,7 +2667,7 @@ static int contec_mcs341_controller_init(void)
 		mcs341_timer.expires = jiffies + CPS_CONTROLLER_MCS341_TICK;
 		add_timer(&mcs341_timer);
 
-		DEBUG_MODULE_PARAM("reset_button_check_mode %d\n",reset_button_check_mode);
+		DEBUG_MODULE_PARAM(KERN_INFO"reset_button_check_mode %d\n",reset_button_check_mode);
 
 		if( !reset_button_check_mode ){
 
@@ -1825,6 +2700,11 @@ static int contec_mcs341_controller_init(void)
 	if( !ret ){
 		// spin_lock initialize
 		spin_lock_init( &mcs341_eeprom_lock );
+
+		ret = platform_driver_register(&contec_mcs341_driver);
+		if( !ret ){
+			contec_mcs341_create_driver_sysfs(&contec_mcs341_driver);
+		}
 	}
 
 	return ret;
@@ -1839,27 +2719,24 @@ static int contec_mcs341_controller_init(void)
 **/
 static void contec_mcs341_controller_exit(void)
 {
-	int cnt = 0;
 
 	if( !reset_button_check_mode ){
 		del_timer_sync(&mcs341_timer);		//2016.02.17 timer
 		gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
 	}
 
-	if( deviceNumber != 0x3f ){
-		for( cnt = 0; cnt < deviceNumber ; cnt++ ){
-			cps_common_mem_release( (0x08000000 + (cnt + 1) * 0x100 ),
-				0x10,
-				map_devbaseaddr[cnt],
-//			CPS_COMMON_MEM_NONREGION );
-				CPS_COMMON_MEM_REGION	 );
-		}
-	} 
+	__contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_RELEASE );// Ver 1.0.15
 
 	cps_common_mem_release( 0x08000000,
 		0x100,
 		map_baseaddr ,
 		CPS_COMMON_MEM_REGION);
+	DEBUG_INITMEMORY(KERN_INFO "cps-system:  Address:%lx \n",(unsigned long)map_baseaddr);
+	map_baseaddr = NULL; // Ver.1.0.15
+
+	contec_mcs341_remove_driver_sysfs(&contec_mcs341_driver);
+	platform_driver_unregister(&contec_mcs341_driver);
+
 	return;
 }
 

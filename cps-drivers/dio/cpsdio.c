@@ -24,12 +24,23 @@
 
 #include <linux/slab.h>
 
-#include "cps_common_io.h"
-#include "cps.h"
-#include "cps_ids.h"
-#include "cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
 
-#include "cpsdio.h"
+ #include "../include/cpsdio.h"
+
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+
+ #include "../../include/cpsdio.h"
+
+#endif
 
 #define DRV_VERSION	"1.0.4"
 
