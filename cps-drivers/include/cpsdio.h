@@ -16,6 +16,7 @@ typedef struct __cpsdio_device_data{
 	unsigned int ProductNumber; ///< Product Number
 	unsigned int inPortNum;///< In port number
 	unsigned int outPortNum;///< Out port number
+	unsigned int isInternalPower;	///< Internal Power Supply	
 }CPSDIO_DEV_DATA, *PCPSDIO_DEV_DATA;
 
 /**
@@ -61,7 +62,7 @@ struct cpsdio_ioctl_arg{
 #define IOCTL_CPSDIO_SET_FILTER	_IOW(CPSDIO_MAGIC, 6, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_FILTER	_IOR(CPSDIO_MAGIC, 7, struct cpsdio_ioctl_arg)
 
-#define IOCTL_CPSDIO_SET_INTERNAL_BAT	_IOW(CPSDIO_MAGIC, 8, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_SET_INTERNAL_POW	_IOW(CPSDIO_MAGIC, 8, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_SET_INT_MASK	_IOW(CPSDIO_MAGIC, 9, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_INT_STATUS	_IOR(CPSDIO_MAGIC, 10, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_SET_INT_EGDE	_IOW(CPSDIO_MAGIC, 11, struct cpsdio_ioctl_arg)
@@ -70,4 +71,13 @@ struct cpsdio_ioctl_arg{
 #define IOCTL_CPSDIO_GET_OUTP_PORTNUM	_IOR(CPSDIO_MAGIC, 14, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_DEVICE_NAME	_IOR(CPSDIO_MAGIC, 15, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_SET_CALLBACK_PROCESS _IOW(CPSDIO_MAGIC, 16, struct cpsdio_ioctl_arg)
+
+#define IOCTL_CPSDIO_SET_DERECTION	_IOW(CPSDIO_MAGIC, 17, struct cpsdio_ioctl_arg )
+#define IOCTL_CPSDIO_GET_DERECTION	_IOR(CPSDIO_MAGIC, 18, struct cpsdio_ioctl_arg )
+#define IOCTL_CPSDIO_GET_INTERNAL_POW	_IOW(CPSDIO_MAGIC, 19, struct cpsdio_ioctl_arg)
+
+
+
+#define IOCTL_CPSDIO_SET_INTERNAL_BAT	IOCTL_CPSDIO_SET_INTERNAL_POW
+
 /**************************************************/

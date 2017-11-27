@@ -1,6 +1,8 @@
 /*** cps.h ******************************/
 
-extern void contec_cps_micro_delay_sleep(unsigned long usec );
+extern void contec_cps_micro_delay_sleep(unsigned long usec , unsigned int isUsedDelay);
+extern void contec_cps_micro_sleep(unsigned long usec);
+extern void contec_cps_micro_delay(unsigned long usec);
 
 extern unsigned char contec_mcs341_controller_cpsDevicesInit(void);
 extern unsigned char contec_mcs341_device_FindCategory( int *startIndex,int CategoryNum );

@@ -18,6 +18,7 @@ typedef struct __cps_device_id{
 #define CPS_CHILD_UNIT_INF_MC341B_10	0x02	///< RS-422A/485 UNIT
 #define CPS_CHILD_UNIT_INF_MC341B_20	0x03 ///< 920MHz UNIT ( CMM-920GP2 )
 #define CPS_CHILD_UNIT_INF_MC341B_40 0x04 ///< 3G UNIT (HL8548)
+#define CPS_CHILD_UNIT_INF_MC341B_50	0x05 ///< LoRa 920MHz UNIT ( EASEL ES920LR )
 #define CPS_CHILD_UNIT_JIG_MC341B_00	0x100 ///< KENSA UNIT
 
 /* Controller Address */
@@ -121,9 +122,12 @@ typedef struct __cps_device_id{
 #define CPS_MCS341_DIO_DIRECTION_GET(n,val) ( val & (1 << n) )
 #define CPS_MCS341_DIO_FILTER_GET(val) ( (val & 0xF0) >> 4 )
 #define CPS_MCS341_DIO_FILTER_SET(val) ( (val & 0x0F) << 4 )
-#define CPS_MCS341_DIO_DIVALUE_GET(n,val) ( val & (1 << n) )
-#define CPS_MCS341_DIO_DOECHOVALUE_GET(n,val) ( ( (val & 0xF0) >> 4) & (1 << n) )
-#define CPS_MCS341_DIO_DOVALUE_SET(n,val) ( val << (n + 4) )
+#define CPS_MCS341_DIO_DIVALUE_GET(val) ( val & 0x0F )
+#define CPS_MCS341_DIO_DOECHOVALUE_GET(val)	( (val & 0xF0) >> 4)
+#define CPS_MCS341_DIO_DOVALUE_SET(val) ( ( val & 0xF0 ) >> 4 )
+
+#define CPS_MCS341_DIO_PORT	1	///< Port
+#define CPS_MCS341_DIO_BIT	2 ///< Bit
 
 /* Device Address (Common) */
 #define CPS_DEVICE_COMMON_REVISION_ADDR	 (0x00)

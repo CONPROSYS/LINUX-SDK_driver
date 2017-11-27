@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.1"
+#define DRV_VERSION	"1.0.2"
 
 /*
  * Configuration:
@@ -180,6 +180,8 @@ struct uart_8250_port {
 	unsigned char		lsr_saved_flags;
 #define MSR_SAVE_FLAGS UART_MSR_ANY_DELTA
 	unsigned char		msr_saved_flags;
+
+	struct serial_rs485     rs485_config;//
 };
 
 struct irq_info {
@@ -1089,6 +1091,9 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		DEBUG_AUTOCONF("EFRv2 ");
 		if( up->port.iotype == UPIO_CPS ){
 			up->port.type = PORT_CPS16550A;
+			serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
+			serial_outp(up, UART_EFR, 0);
+			serial_outp(up, UART_LCR, 0);
 			//up->port.type = PORT_16550A;
 			return;
 		}
@@ -1639,6 +1644,7 @@ static void transmit_chars(struct uart_8250_port *up)
 		__stop_tx(up);
 		return;
 	}
+
 
 	count = up->tx_loadsz;
 	do {
@@ -2896,22 +2902,26 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 ***/
 
 #define UART_FCTR_RS485 ( 0x08 )
+#define SER_RS485_AUTORTS_ENABLE	(1 << 8)
 static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long arg)
 {
 	struct uart_8250_port *up;
 	unsigned long flags;
 	unsigned int mode;
-	unsigned long autoRs485Enable = 0;
 	unsigned char fctr, old_lcr;
+
 
 	up = container_of(port, struct uart_8250_port, port);
 
 	switch( cmd ){
 	case TIOCSRS485:
 		if ( up->port.iotype != UPIO_CPS ) return -ENOTTY;
- 
-		if (copy_from_user(&autoRs485Enable, (void __user *) arg,
-			sizeof(unsigned long)))
+
+		if(!access_ok(VERITY_READ, (struct serial_rs485 *)arg, sizeof(struct serial_rs485) ) ){
+			return -EFAULT;
+		}
+
+		if (copy_from_user(&up->rs485_config, (struct serial_rs485 *) arg, sizeof(struct serial_rs485)))
 				return -EFAULT;
 
 		spin_lock_irqsave(&up->port.lock, flags);
@@ -2922,11 +2932,12 @@ static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long 
 		serial_out(up, UART_IER, 0);
 
 		old_lcr = serial_inp(up, UART_LCR);
+
 		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
 
 		fctr = serial_inp(up, UART_FCTR);
 
-		if( autoRs485Enable )
+		if( up->rs485_config.flags & SER_RS485_AUTORTS_ENABLE )
 			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485 );
 		else
 			serial_outp(up, UART_FCTR, fctr & ~UART_FCTR_RS485 );
@@ -2943,6 +2954,10 @@ static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long 
 	case TIOCGRS485:
 		if ( up->port.iotype != UPIO_CPS ) return -ENOTTY; 
 
+		if(!access_ok(VERITY_WRITE, (struct serial_rs485 *)arg, sizeof(struct serial_rs485) ) ){
+			return -EFAULT;
+		}
+
 		spin_lock_irqsave(&up->port.lock, flags);
 
 		/* Disable interrupts from this port */
@@ -2956,20 +2971,19 @@ static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long 
 		fctr = serial_inp(up, UART_FCTR);
 
 		if( fctr & UART_FCTR_RS485 )
-			autoRs485Enable = 1;
+			up->rs485_config.flags |= SER_RS485_AUTORTS_ENABLE;
 		else
-			autoRs485Enable = 0;
+			up->rs485_config.flags &= ~SER_RS485_AUTORTS_ENABLE;
 
-		serial_outp(up, UART_LCR, old_lcr);
-
+			serial_outp(up, UART_LCR, old_lcr);
 		/* Enable interrupts */
 		up->ier = mode;
 		serial_out(up, UART_IER, up->ier);
 
 		spin_unlock_irqrestore(&up->port.lock, flags);
 
-		if (copy_to_user((void __user *) arg, &autoRs485Enable,
-			sizeof(unsigned long)))
+		if (copy_to_user( (struct serial_rs485 *) arg, &up->rs485_config,
+			sizeof(struct serial_rs485)))
 				return -EFAULT;
 
 		break;

@@ -3,18 +3,16 @@ obj-m := cps-driver.o
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 PWD       := $(shell pwd)
 
-EXTRA_CFLAGS	:= -DDEBUG=0
-
-#cross build 
-CROSS_COMPILE=arm-linux-gnueabi-
-ARCH=arm
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel #target kernel source path
 
+EXTRA_CFLAGS	:= -DDEBUG=0
+EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include
+
 all:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) $(DRIVER_INCLUDES) modules
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) $(DRIVER_INCLUDES) modules
 
 modules_install:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules_install
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
 
 release_copy:
 	cp -p ./cps-driver.ko ../../release/

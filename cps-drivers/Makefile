@@ -16,6 +16,9 @@ release_copy:
 	(cd $$subdir && $(MAKE) release_copy ) ;\
 	done
 
+sdk_install:
+	cp -p include/*  ${CPS_SDK_INSTALL_FULLDIR}/${CPS_SDK_ROOTFS}/usr/local/include
+
 clean:
 	@for subdir in $(subdirs) ; do \
 	(cd $$subdir && $(MAKE) clean ) ;\

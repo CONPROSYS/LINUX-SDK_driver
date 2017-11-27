@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.9
+ * Version 1.0.10
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,16 +37,16 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.9"
+#define DRV_VERSION	"1.0.11"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
 
-#include "../include/cps.h"
-#include "../include/cps_ids.h"
-#include "../include/cps_common_io.h"
+#include "cps_common_io.h"
+#include "cps.h"
+#include "cps_ids.h"
 
 /**
  @~English
@@ -86,17 +86,23 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_EEPROM_CONTROL(fmt...)        do { } while (0)
 #endif
 
-#if 1
+#if 0
 #define DEBUG_SYSTEM_INIT_WRITE_REG(fmt...)        printk(fmt)
 #else
 #define DEBUG_SYSTEM_INIT_WRITE_REG(fmt...)        do { } while (0)
 #endif
 
 
-#if 1
+#if 0
 #define DEBUG_RESET_WRITE_REG(fmt...)        printk(fmt)
 #else
 #define DEBUG_RESET_WRITE_REG(fmt...)        do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_MODULE_PARAM(fmt...)        printk(fmt)
+#else
+#define DEBUG_MODULE_PARAM(fmt...)        do { } while (0)
 #endif
 
 /// @}
@@ -119,6 +125,10 @@ static unsigned char mcs341_fpga_reset_reg = 0; ///< fpga reset data
 #define CPS_MCS341_ARRAYNUM_LED_ERR	3
 
 #define CPS_MCS341_MAX_LED_ARRAY_NUM	4
+
+//2016.07.15 Global Spinlock
+spinlock_t		mcs341_eeprom_lock;
+
 /**
 	@~English
 	@brief led timer counter
@@ -223,27 +233,80 @@ irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 	@brief MCS341 マイクロ秒ウェイト関数
 	@note 2016.04.22 : 1ミリ秒未満の場合, udelay それ以上の場合は msleep_interruptibleに変更
 	@note 2016.05.16 : 1ミリ秒未満の場合 udelayから usleep_rangeに変更
+	@note 2016.08.09 : スピンロック中にsleepすることが禁止のため、引数を追加
 	@param usec : マイクロ秒
 **/
-static void contec_cps_micro_delay_sleep(unsigned long usec ){
-/*
-	while( usec > 0 ){
-		udelay( 1 );
-		usec--;
-	}
-*/
-	if( (usec % 1000) > 0){
-//
-//		udelay( usec % 1000 );
-		usleep_range( (usec % 1000) , 1000);
-	}
+static void contec_cps_micro_delay_sleep(unsigned long usec, unsigned int isUsedDelay){
 
-	if( (usec / 1000) > 0 ){
-		msleep_interruptible( usec / 1000 );
+	if( isUsedDelay	){
+		while( usec > 0 ){
+			udelay( 1 );
+			usec--;
+		}		
+	}
+	else{
+		if( (usec % 1000) > 0){
+			usleep_range( (usec % 1000) , 1000);
+		}
+
+		if( (usec / 1000) > 0 ){
+			msleep_interruptible( usec / 1000 );
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(contec_cps_micro_delay_sleep);
+
+/**
+	@~English
+	@brief MCS341 Controller's micro second sleep time funciton
+	@param usec : times( micro second order )
+	@~Japanese
+	@brief MCS341 マイクロ秒ウェイト関数
+
+	@param usec : マイクロ秒
+**/
+static void contec_cps_micro_sleep(unsigned long usec){
+	contec_cps_micro_delay_sleep( usec, 0 );
+}
+EXPORT_SYMBOL_GPL(contec_cps_micro_sleep);
+
+/**
+	@~English
+	@brief MCS341 Controller's micro second delay time funciton
+	@param usec : times( micro second order )
+	@~Japanese
+	@brief MCS341 マイクロ秒ウェイト関数
+
+	@param usec : マイクロ秒
+**/
+static void contec_cps_micro_delay(unsigned long usec){
+	contec_cps_micro_delay_sleep( usec, 1 );
+}
+EXPORT_SYMBOL_GPL(contec_cps_micro_delay);
+
+/**
+	@~English
+	@brief This function waits 5 seconds per device.
+	@note MCS341 Controller fpga version is more than 2.
+	@~Japanese
+	@brief この関数は デバイス毎に5秒待つ関数です。
+	@note MCS341 FPGAバージョン 2以降の関数です。
+	@par この関数は内部関数です。LVDS電源を落とした後, 所定の電荷に落ちるまでの時間待ちをします。
+**/
+static void __contec_cps_before_shutdown_wait_devices( void )
+{
+	int cnt;
+	printk(KERN_WARNING"cps_driver: After turning off, please wait at least 5 seconds per device before removing.");
+	if( fpga_ver > 1 )
+	{
+		printk(KERN_WARNING"cps_driver: Wait time [%d] sec.",	deviceNumber * 5 );
+		// Wait 5 sec
+		for( cnt = 0 ; cnt < deviceNumber; cnt ++ ){
+			contec_cps_micro_sleep( 5 * USEC_PER_SEC );
+		}
 	}
 
 }
-EXPORT_SYMBOL_GPL(contec_cps_micro_delay_sleep);
 
 /**
 	@~English
@@ -431,6 +494,8 @@ static unsigned char contec_mcs341_controller_setInterrupt( int GroupNum , int i
 
 	contec_mcs341_outb(CPS_CONTROLLER_MCS341_INTERRUPT_ADDR(0), valb);
 
+	mcs341_deviceInterrupt[0] = valb;
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setInterrupt);
@@ -488,21 +553,17 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDioFilter);
 /**
 	@~English
 	@brief MCS341 Controller's Digital Output Values.
-	@param dioNum  : Digital I/O Number ( from 0 to 3 )
 	@param value : values ( from 0 to 15 )
 	@~Japanese
 	@brief MCS341 Controllerのデジタル出力の値を設定する関数
-	@param dioNum  : デジタルビット番号( 0 から 3まで )
 	@param value  : 出力値 ( 0から 15まで )
 **/
-static unsigned char contec_mcs341_controller_setDoValue( int dioNum, int value ){
+static unsigned char contec_mcs341_controller_setDoValue( int value ){
 
 	unsigned char valb;
 
-	valb = CPS_MCS341_DIO_DOVALUE_SET( dioNum, value );
-
-	cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR), valb );
-
+	valb = CPS_MCS341_DIO_DOVALUE_SET( value );
+	contec_mcs341_outb( CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR, valb );
 	return 0;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDoValue);
@@ -520,8 +581,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDoValue);
 static unsigned char contec_mcs341_controller_getProductVersion(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR), &valb );
-
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, &valb );
 	return CPS_MCS341_PRODUCT_VERSION(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductVersion);
@@ -536,8 +596,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductVersion);
 static unsigned char contec_mcs341_controller_getProductType(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR), &valb );
-
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, &valb );
 	return CPS_MCS341_PRODUCT_TYPE(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductType);
@@ -552,7 +611,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductType);
 static unsigned short contec_mcs341_controller_getFpgaVersion(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_FPGAVERSION_ADDR), &valb );
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_FPGAVERSION_ADDR, &valb );
 	return valb;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getFpgaVersion);
@@ -568,8 +627,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getFpgaVersion);
 static unsigned char contec_mcs341_controller_getUnitId(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_ROTARYSW_RADDR), &valb );
-
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_ROTARYSW_RADDR, &valb );
 	return CPS_MCS341_ROTARYSW_UNITID(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getUnitId);
@@ -584,8 +642,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getUnitId);
 static unsigned char contec_mcs341_controller_getGroupId(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_ROTARYSW_RADDR), &valb );
-
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_ROTARYSW_RADDR, &valb );
 	return CPS_MCS341_ROTARYSW_GROUPID(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getGroupId);
@@ -600,7 +657,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getGroupId);
 static unsigned char contec_mcs341_controller_getDeviceNum(void){
 	unsigned char valb = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_DEVICENUM_RADDR), &valb );
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_DEVICENUM_RADDR, &valb );
 
 	return CPS_MCS341_DEVICENUM_VALUE(valb);
 }
@@ -665,41 +722,35 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getInterrupt);
 /**
 	@~English
 	@brief MCS341 Controller's Digital Echo Output Values.
-	@param dioNum  : Digital I/O Number ( from 0 to 3 )
 	@return echo output values ( from 0 to 15 )
 	@~Japanese
 	@brief MCS341 Controllerのデジタル出力のエコーバックの値を取得する関数
-	@param dioNum  : デジタルビット番号( 0 から 3まで )
 	@return エコーバック出力値 ( 0から 15まで )
 **/
-static unsigned char contec_mcs341_controller_getDoEchoValue( int dioNum ){
+static unsigned char contec_mcs341_controller_getDoEchoValue( void ){
 
 	unsigned char valb = 0;
 	
-	if( dioNum < 0 || dioNum > 3 ) return -1;
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR), &valb );
+	contec_mcs341_inpb(CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR, &valb );
 
-	return CPS_MCS341_DIO_DOECHOVALUE_GET(dioNum, valb);
+	return CPS_MCS341_DIO_DOECHOVALUE_GET( valb );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDoEchoValue);
 /**
 	@~English
 	@brief MCS341 Controller's Digital Input Values.
-	@param dioNum  : Digital I/O Number ( from 0 to 3 )
 	@return input values ( from 0 to 15 )
 	@~Japanese
 	@brief MCS341 Controllerのデジタル入力の値を取得する関数
-	@param dioNum  : デジタルビット番号( 0 から 3まで )
 	@return  : 入力値 ( 0から 15まで )
 **/
-static unsigned char contec_mcs341_controller_getDiValue( int dioNum ){
+static unsigned char contec_mcs341_controller_getDiValue( void ){
 
 	unsigned char valb = 0;
 
-	if( dioNum < 0 || dioNum > 3 ) return -1;
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR), &valb );
+	contec_mcs341_inpb(CPS_CONTROLLER_MCS341_DIO_VALUE_ADDR, &valb );
 
-	return CPS_MCS341_DIO_DIVALUE_GET(dioNum, valb);
+	return CPS_MCS341_DIO_DIVALUE_GET( valb );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 
@@ -714,6 +765,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 	@~Japanese
 	@brief MCS341 コントローラ用タイマー関数
 	@note 2016.02.17 : halt / shutdown ボタン処理用タイマー関数として実装
+	@note 2016.06.10 : reset_button_check_modeのとき、gpio87から入力信号が入ると orderly_poweroffが走ってしまう問題を修正
 	@param arg : 引数
 **/
 void mcs341_controller_timer_function(unsigned long arg)
@@ -736,30 +788,32 @@ void mcs341_controller_timer_function(unsigned long arg)
 		}
 	}
 
+	//Ver 1.0.10 [bugfix] 2016.06.10
+	if( !reset_button_check_mode ){
+		if( gpio_get_value(CPS_CONTROLLER_MCS341_RESET_PIN) ){
+			// Ver.1.0.9
+			// At first pushed button, LVDS power and systeminit interrupt line off!!
+			if(reset_count == 0 && fpga_ver > 1 ){
+				// LVDS OFF
+				mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
+				contec_mcs341_controller_setFpgaResetReg();
 
-	if( gpio_get_value(CPS_CONTROLLER_MCS341_RESET_PIN) ){
-		// Ver.1.0.9
-		// At first pushed button, LVDS power and systeminit interrupt line off!!
-		if(reset_count == 0 && fpga_ver > 1 ){
-			// LVDS OFF
-			mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
-			contec_mcs341_controller_setFpgaResetReg();
+				// INTERRUPT LINE OFF
+				mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
+				contec_mcs341_controller_setSystemInit();
+			}
 
-			// INTERRUPT LINE OFF
-			mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
-			contec_mcs341_controller_setSystemInit();
+			reset_count += 1;
+			if( reset_count > (5 * 50) ){ //about 5 sec over
+				printk(KERN_INFO"RESET !\n");
+				gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
+			}
+		}else{
+			if( reset_count > 0 ){
+				orderly_poweroff(false);
+			}
+			reset_count = 0;
 		}
-
-		reset_count += 1;
-		if( reset_count > (5 * 50) ){ //about 5 sec over
-			printk(KERN_INFO"RESET !\n");
-			gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
-		}
-	}else{
-		if( reset_count > 0 ){
-			orderly_poweroff(false);
-		}
-		reset_count = 0;
 	}
 
 	if( watchdog_timer_msec ){
@@ -774,12 +828,12 @@ void mcs341_controller_timer_function(unsigned long arg)
 /**
 	@~English
 	@brief This function is completed by MCS341 Device ID-Sel.
-	@note This function is sub-routine of Initialize.
+	@par This function is sub-routine of Initialize.
 	@~Japanese
 	@brief MCS341 ControllerのID-SELを完了させるための関数。
-	@note 初期化を完了させるためのサブルーチン
+	@par この関数は内部関数です。初期化を完了させるためのサブルーチンになります。
 **/
-static void contec_mcs341_device_idsel_complete( void ){
+static void __contec_mcs341_device_idsel_complete( void ){
 	int cnt;
 	int nInterrupt;
 
@@ -796,7 +850,7 @@ static void contec_mcs341_device_idsel_complete( void ){
 		}
 		// 
 		cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
-		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );
+		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
 
 		nInterrupt = (deviceNumber / 4) + 1;
 		for( cnt = 0; cnt < nInterrupt; cnt++ )
@@ -817,8 +871,8 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 	unsigned char valb = 0;
 	unsigned int timeout = 0;
 
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-
+	//cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 	valb = valb & 0x0F;
 
 	if( valb != 0x03 && valb != 0x08 && valb != 0x0c ){
@@ -841,8 +895,9 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
 		contec_mcs341_controller_setSystemInit();
 			do{
-			contec_cps_micro_delay_sleep(5);
-			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+			contec_cps_micro_sleep(5);
+//		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++;
 		}while( !(valb & CPS_MCS341_SYSTEMINIT_INIT_END) );
@@ -851,13 +906,13 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
 			CPS-MCS341 must wait 1 msec.
 		*/ 		
-		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );	
-		contec_mcs341_device_idsel_complete();
+		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );	
+		__contec_mcs341_device_idsel_complete();
 	/*
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_RESET_WADDR) ,
 			CPS_MCS341_RESET_SET_IDSEL_COMPLETE );
 		do{
-			contec_cps_micro_delay_sleep(5);
+			contec_cps_micro_sleep(5);
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb);
 		}while( valb & CPS_MCS341_SYSTEMINIT_INITBUSY );
 	*/
@@ -865,8 +920,9 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 				contec_mcs341_controller_setSystemInit();
 		timeout = 0;
 		do{
-			contec_cps_micro_delay_sleep(5);
-			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+			contec_cps_micro_sleep(5);
+//		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
 		}while( !(valb & CPS_MCS341_SYSTEMINIT_INTERRUPT_END)  );
@@ -875,7 +931,7 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		When many devices was connected more than 15, getDeviceNumber gets 14 values.
 		CPS-MCS341 must wait 1 msec.
 	*/ 	
-	contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );
+	contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
 
 	return 0;
 
@@ -912,6 +968,7 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 			CPS_MCS341_SETPINMODE_CTSSUB_CTS,
 			CPS_MCS341_SETPINMODE_RTSSUB_RTS
 		);
+		break;
 	case CPS_CHILD_UNIT_JIG_MC341B_00:		// CPS-MCS341-DS1 (JIG)
 		contec_mcs341_controller_setPinMode(
 			CPS_MCS341_SETPINMODE_3G3_OUTPUT,
@@ -919,6 +976,7 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 			CPS_MCS341_SETPINMODE_CTSSUB_OUTPUT,
 			CPS_MCS341_SETPINMODE_RTSSUB_OUTPUT
 		);
+		break;
 	case CPS_CHILD_UNIT_INF_MC341B_40:		// CPS-MCS341G-DS1-110
 		contec_mcs341_controller_setPinMode(
 			CPS_MCS341_SETPINMODE_3G3_OUTPUT,
@@ -926,8 +984,6 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 			CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
 			CPS_MCS341_SETPINMODE_RTSSUB_INPUT
 		);
-		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
-		contec_mcs341_controller_setSystemInit();
 		break;
 	case CPS_CHILD_UNIT_NONE:
 	default:
@@ -945,10 +1001,19 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
 	contec_mcs341_controller_setSystemInit();
 	// Wait ( 5sec )
-	contec_cps_micro_delay_sleep(5 * USEC_PER_SEC);
+	contec_cps_micro_sleep(5 * USEC_PER_SEC);
 	// RESET
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
 	contec_mcs341_controller_setSystemInit();
+
+	if( childType == CPS_CHILD_UNIT_INF_MC341B_40 ){
+		// fixed HL8528 Bubble Interrupt!
+		contec_cps_micro_sleep( 2500 * USEC_PER_MSEC ); // 2.5 sec wait
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+		contec_mcs341_controller_setSystemInit();
+
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
@@ -962,6 +1027,42 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
  @name スタックデバイス用関数
 */
 /// @{
+
+/**
+	@~English
+	@brief MCS341 Device's address write 2byte data.
+	@param dev : device number
+	@param offset : Address Offset
+	@param valw : value ( unsigned short )
+	@~Japanese
+	@brief MCS341 Deviceのアドレスにデータを2バイト分書き出す関数
+	@param dev : デバイスID
+	@param offset : オフセット
+	@param valw : 値
+**/
+static void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, unsigned short valw )
+{
+	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %hx \n", dev, offset, valw );
+	cps_common_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+}
+
+/**
+	@~English
+	@brief MCS341 Device's address read 2byte data.
+	@param dev : device number
+	@param offset : Address Offset
+	@param valw : value ( unsigned short )
+	@~Japanese
+	@brief MCS341 Deviceのアドレスにデータを2バイト分読み出す関数
+	@param dev : デバイスID
+	@param offset : オフセット
+	@param valw : 値
+**/
+static void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, unsigned short *valw )
+{
+	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
+}
 
 /**
 	@~English
@@ -1122,21 +1223,28 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_mirror_get);
 /**
 	@~English
 	@brief This function is written the targeting CPS-Device ROM.
-	@param baseaddr : Base Address
+	@param dev : Device Number
 	@param valw : value (unsigned short)
 	@par This function is internal function.
 	@return Success : 0
 	@~Japanese
 	@brief MCS341 ターゲットのROMに書き込む関数
-	@param baseaddr : ベースアドレス
+	@param dev : デバイス番号
 	@param valw : 値 (16bit)
 	@par この関数は内部関数です。
 	@return 成功  物理失敗 0
 **/
-static unsigned char __contec_mcs341_device_rom_write_command( unsigned long baseaddr, unsigned short valw )
+//static unsigned char __contec_mcs341_device_rom_write_command( unsigned long baseaddr, unsigned short valw )
+static unsigned char __contec_mcs341_device_rom_write_command( unsigned int dev, unsigned short valw )
 {
-	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ), 
+
+	unsigned long flags;
+
+	spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+//	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ),
+	contec_mcs341_device_outw( dev, CPS_DEVICE_COMMON_ROM_WRITE_ADDR,
 		(valw | CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE ) );
+	spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 
 	DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_ROM_WRITE_ADDR, (valw | CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE ) );
 
@@ -1144,20 +1252,23 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned long bas
 	switch ( (valw  & 0x80FE )){
 		case CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE:
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ:
-//			contec_cps_micro_delay_sleep(5); break;
-			contec_cps_micro_delay_sleep(25); break;
+//			contec_cps_micro_sleep(5); break;
+			contec_cps_micro_sleep(25); break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE:
-			contec_cps_micro_delay_sleep( 5 * USEC_PER_SEC ); /* 5sec */ break;
+			contec_cps_micro_sleep( 5 * USEC_PER_SEC ); /* 5sec */ break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT:
 		case CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE:
-//			contec_cps_micro_delay_sleep(1);break;
-			contec_cps_micro_delay_sleep(5);break;
+//			contec_cps_micro_sleep(1);break;
+			contec_cps_micro_sleep(5);break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE:
-			contec_cps_micro_delay_sleep(200);break;
+			contec_cps_micro_sleep(200);break;
 	}
 
-	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ),
+	spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+//	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ),
+	contec_mcs341_device_outw( dev, CPS_DEVICE_COMMON_ROM_WRITE_ADDR,
 		( (valw & 0x7F00) | CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED) );
+	spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 	DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_ROM_WRITE_ADDR, ( (valw & 0x7F00) | CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED)  );
 
 	return 0;
@@ -1182,45 +1293,57 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned long bas
 static unsigned char __contec_mcs341_device_logical_id( int dev, int isWrite, unsigned char *valb)
 {
 
+	unsigned long flags;
+
 	if( dev >= deviceNumber ) return 1;
 
 	/* Device Id Write */
 	if( isWrite == CPS_DEVICE_COMMON_WRITE ){
+		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
 		cps_common_outb( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_LOGICALID_ADDR) , *valb );
+		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 	}
 
 	/* ROM ACCESS ENABLE */
-	__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev], 
+//	__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+	__contec_mcs341_device_rom_write_command( dev,
 		CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE );
 	
 	/* ROM CLEAR ALL (CLEAR ONLY) */
 	if( isWrite == CPS_DEVICE_COMMON_CLEAR ){
-		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+		__contec_mcs341_device_rom_write_command( dev,
 			CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE );
 	}
 	else{	 /* WRITE or READ */
 		/* ROM ADDR INITIALIZE */
-		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+		__contec_mcs341_device_rom_write_command( dev,
 			CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT );
 
 		/* ROM WRITE or READ FLAG SET */
 		if( isWrite == CPS_DEVICE_COMMON_WRITE ){
-			__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//			__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+			__contec_mcs341_device_rom_write_command( dev,
 				CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE );
 		}
 		else{
-			__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+//			__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+			__contec_mcs341_device_rom_write_command( dev,
 				CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ );
  		}
 	}
 	/* ROM ACCESS DISABLE */
-	__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+//	__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+	__contec_mcs341_device_rom_write_command( dev,
 		CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE);
 
 	if( isWrite == CPS_DEVICE_COMMON_READ ){
-	cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] +
-		CPS_DEVICE_COMMON_LOGICALID_ADDR), valb );
+		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+		cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] +
+				CPS_DEVICE_COMMON_LOGICALID_ADDR), valb );
+		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 	}
 
 	return 0;
@@ -1321,6 +1444,8 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 {
 
 	unsigned short valExt , valA;
+	unsigned long flags;
+
 	if( dev >= deviceNumber ){
 		DEBUG_EEPROM_CONTROL(KERN_INFO" device_extension_value : dev %d\n", dev );
 		return 1;
@@ -1331,6 +1456,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 
 	/* value Write */
 	if( isWrite == CPS_DEVICE_COMMON_WRITE ){
+		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valExt );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valExt );
@@ -1343,44 +1469,50 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valA );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valA );
-
+		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 	}
 
 	/* ROM ACCESS ENABLE */
-	__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev], 
+//	__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
 //		(valExt | CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE) );
+	__contec_mcs341_device_rom_write_command( dev,
 			CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE );
 	/* ROM CLEAR ALL (WRITE ONLY) */
 	if( isWrite == CPS_DEVICE_COMMON_CLEAR ){
-		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
 //			(valExt | CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE) );
+		__contec_mcs341_device_rom_write_command( dev,
 			CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE );
 	}
 	else{ /* WRITE or READ */
 		/* ROM ADDR INITIALIZE */
-		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//		__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
 //		(valExt | CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT) );
+		__contec_mcs341_device_rom_write_command( dev,
 			CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT );
 
 		/* ROM WRITE or READ FLAG SET */
 		if( isWrite == CPS_DEVICE_COMMON_WRITE ){
-			__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
+//			__contec_mcs341_device_rom_write_command( (unsigned long)map_devbaseaddr[dev],
 //			(valExt | CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE) );
-				CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE );
+			__contec_mcs341_device_rom_write_command( dev,
+					CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE );
 		}
 		else if( isWrite == CPS_DEVICE_COMMON_READ ) {
-			__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+//			__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
 //			( valExt | CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ ) );
-				CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ);
+			__contec_mcs341_device_rom_write_command( dev,
+					CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ);
  		}
 	}
 	/* ROM ACCESS DISABLE */
-	__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
+//	__contec_mcs341_device_rom_write_command((unsigned long)map_devbaseaddr[dev],
 //		(valExt | CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE ));
-		CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE );
+	__contec_mcs341_device_rom_write_command( dev,
+			CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE );
 
 	if( isWrite == CPS_DEVICE_COMMON_READ ){
-
+		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valExt );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valExt );
@@ -1393,7 +1525,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valA );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valA );
-
+		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
 	}
 
 	return 0;
@@ -1501,10 +1633,6 @@ static unsigned char contec_mcs341_device_deviceNum_get( unsigned long baseAddr 
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_deviceNum_get);
 
-/*
-	@param BaseAddr : Base Address ( not Virtual Memory Address )
-	@note :: Is used cpscom driver. return Current Serial Channel. 
-*/ 
 /**
 	@~English
 	@brief This function is get the targeting serial port Number from BaseAddress.
@@ -1559,6 +1687,8 @@ static int contec_mcs341_controller_init(void)
 
 	if( (ret = contec_mcs341_controller_cpsDevicesInit() ) == 0 ){
 
+		DEBUG_MODULE_PARAM("child unit %d\n", child_unit );
+
 		contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
 		//2016.02.17 timer add Ver.1.0.7
@@ -1567,8 +1697,11 @@ static int contec_mcs341_controller_init(void)
 		mcs341_timer.data = (unsigned long)&mcs341_timer;
 		mcs341_timer.expires = jiffies + CPS_CONTROLLER_MCS341_TICK;
 		add_timer(&mcs341_timer);
-	
+
+		DEBUG_MODULE_PARAM("reset_button_check_mode %d\n",reset_button_check_mode);
+
 		if( !reset_button_check_mode ){
+
 			gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
 			gpio_request(CPS_CONTROLLER_MCS341_RESET_PIN, "cps_mcs341_reset");
 			gpio_direction_input(CPS_CONTROLLER_MCS341_RESET_PIN);
@@ -1594,6 +1727,11 @@ static int contec_mcs341_controller_init(void)
 		}
 	}
 
+	if( !ret ){
+		// spin_lock initialize
+		spin_lock_init( &mcs341_eeprom_lock );
+	}
+
 	return ret;
 }
 
@@ -1602,6 +1740,7 @@ static int contec_mcs341_controller_init(void)
 	@brief cps-driver exit function.
 	@~Japanese
 	@brief cps-driver 終了関数.
+	@note 2016.06.10 : CPS_COMMON_MEM_NONREGIONから CPS_COMMON_MEM_REGIONに修正。( rmmod後再度insmodするとエラーになる問題を修正 )
 **/
 static void contec_mcs341_controller_exit(void)
 {
@@ -1617,7 +1756,8 @@ static void contec_mcs341_controller_exit(void)
 			cps_common_mem_release( (0x08000000 + (cnt + 1) * 0x100 ),
 				0x10,
 				map_devbaseaddr[cnt],
-				CPS_COMMON_MEM_NONREGION	 );
+//			CPS_COMMON_MEM_NONREGION );
+				CPS_COMMON_MEM_REGION	 );
 		}
 	} 
 

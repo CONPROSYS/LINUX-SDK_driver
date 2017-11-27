@@ -24,19 +24,19 @@
 
 #include <linux/slab.h>
 
-#include "../include/cps_common_io.h"
-#include "../include/cps.h"
-#include "../include/cps_ids.h"
-#include "../include/cps_extfunc.h"
+#include "cps_common_io.h"
+#include "cps.h"
+#include "cps_ids.h"
+#include "cps_extfunc.h"
 
-#define DRV_VERSION	"0.9.7"
+#include "cpsdio.h"
+
+#define DRV_VERSION	"0.9.9"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
-
-#include "../include/cpsdio.h"
 
 #define CPSDIO_DRIVER_NAME "cpsdio"
 
@@ -59,6 +59,7 @@ typedef struct __cpsdio_driver_file{
 
 }CPSDIO_DRV_FILE,*PCPSDIO_DRV_FILE;
 
+static	int *notFirstOpenFlg = NULL;		// segmentation fault暫定対策フラグ
 
 /*!
  @~English
@@ -72,6 +73,14 @@ typedef struct __cpsdio_driver_file{
 #else
 #define DEBUG_CPSDIO_OPEN(fmt...)	do { } while (0)
 #endif
+
+#if 0
+#define DEBUG_CPSDIO_IOCTL(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSDIO_IOCTL(fmt...)	do { } while (0)
+#endif
+
+
 /// @}
 ///
 static int cpsdio_max_devs;		///< device count
@@ -95,31 +104,99 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 		.Name = "CPS-DIO-0808L",
 		.ProductNumber = CPS_DEVICE_DIO0808L ,
 		.inPortNum = 8,
-		.outPortNum = 8
+		.outPortNum = 8,
+		.isInternalPower = 0
 	},
 	{
 		.Name = "CPS-DIO-0808BL",
 		.ProductNumber = CPS_DEVICE_DIO0808BL,
 		.inPortNum = 8,
-		.outPortNum = 8
+		.outPortNum = 8,
+		.isInternalPower = 1,
 	},
 	{
 		.Name = "CPS-DIO-0808RL",
 		.ProductNumber = CPS_DEVICE_DIO0808RL,
 		.inPortNum = 8,
-		.outPortNum = 8
+		.outPortNum = 8,
+		.isInternalPower = 0,
 	},
 	{
 		.Name = "CPS-RRY-4PCC",
 		.ProductNumber = CPS_DEVICE_RRY_4PCC,
 		.inPortNum = 0,
-		.outPortNum = 4
+		.outPortNum = 4,
+		.isInternalPower = 0,
+	},
+	{
+		.Name = "CPS-DIO-0808RBL",
+		.ProductNumber = CPS_DEVICE_DIO0808RBL,
+		.inPortNum = 8,
+		.outPortNum = 8,
+		.isInternalPower = 1,
+	},
+	{
+		.Name = "CPS-DI-16L",
+		.ProductNumber = CPS_DEVICE_DI16L ,
+		.inPortNum = 16,
+		.outPortNum = 0,
+		.isInternalPower = 0
+	},
+	{
+		.Name = "CPS-DI-16BL",
+		.ProductNumber = CPS_DEVICE_DI16BL,
+		.inPortNum = 16,
+		.outPortNum = 0,
+		.isInternalPower = 1,
+	},
+	{
+		.Name = "CPS-DO-16L",
+		.ProductNumber = CPS_DEVICE_DO16L ,
+		.inPortNum = 0,
+		.outPortNum = 16,
+		.isInternalPower = 0
+	},
+	{
+		.Name = "CPS-DO-16BL",
+		.ProductNumber = CPS_DEVICE_DO16BL,
+		.inPortNum = 0,
+		.outPortNum = 16,
+		.isInternalPower = 1,
+	},
+	{
+		.Name = "CPS-DI-16RL",
+		.ProductNumber = CPS_DEVICE_DI16RL ,
+		.inPortNum = 16,
+		.outPortNum = 0,
+		.isInternalPower = 0
+	},
+	{
+		.Name = "CPS-DI-16RBL",
+		.ProductNumber = CPS_DEVICE_DI16RBL,
+		.inPortNum = 16,
+		.outPortNum = 0,
+		.isInternalPower = 1,
+	},
+	{
+		.Name = "CPS-DO-16RL",
+		.ProductNumber = CPS_DEVICE_DO16RL ,
+		.inPortNum = 0,
+		.outPortNum = 16,
+		.isInternalPower = 0
+	},
+	{
+		.Name = "CPS-DO-16RBL",
+		.ProductNumber = CPS_DEVICE_DO16RBL,
+		.inPortNum = 0,
+		.outPortNum = 16,
+		.isInternalPower = 1,
 	},
 	{
 		.Name = "",
 		.ProductNumber = -1,
 		.inPortNum = -1,
-		.outPortNum = -1
+		.outPortNum = -1,
+		.isInternalPower = -1,
 	},
 };
 
@@ -129,17 +206,19 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 	@~English
 	@brief This function get Digital Input Data.
 	@param BaseAddr : Base Address
+	@param port : Port Number
 	@param val : value
 	@return true : 0
 	@~Japanese
 	@brief デジタル入力のデータを取得する関数
 	@param BaseAddr : ベースアドレス
+	@param port : ポート番号
 	@param val : 値
 	@return 成功 : 0
 **/
-static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned char *val )
+static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned int port, unsigned char *val )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_INPUT0_CPS_DIO_0808 ) , val );
+	cps_common_inpb( (unsigned long)( BaseAddr + port + OFFSET_INPUT0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
@@ -147,17 +226,19 @@ static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned char *va
 	@~English
 	@brief This function get Digital Output Echo Data.
 	@param BaseAddr : Base Address
+	@param port : Port Number
 	@param val : value
 	@return true : 0
 	@~Japanese
 	@brief デジタル出力のエコーバック・データを取得する関数
 	@param BaseAddr : ベースアドレス
+	@param port : ポート番号
 	@param val : 値
 	@return 成功 : 0
 **/
-static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned char *val )
+static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned int port, unsigned char *val )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
+	cps_common_inpb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
@@ -165,25 +246,27 @@ static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned ch
 	@~English
 	@brief This function set Digital Output Data.
 	@param BaseAddr : Base Address
+	@param port : Port Number
 	@param val : value
 	@return true : 0
 	@~Japanese
 	@brief デジタル出力のデータを設定する関数
 	@param BaseAddr : ベースアドレス
+	@param port : ポート番号
 	@param val : 値
 	@return 成功 : 0
 **/
-static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned char val )
+static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned int port, unsigned char val )
 {
-	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
+	cps_common_outb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
 /**
 	@~English
-	@brief This function set Battery.　（Internal or External).
+	@brief This function set Power Supply.　（Internal or External).
 	@param BaseAddr : Base Address
-	@param isOn : select Battery ( 1 : Internal, 0 : External )
+	@param isOn : select Power Supply ( 1 : Internal, 0 : External )
 	@return true : 0
 	@~Japanese
 	@brief デジタル出力の内部電源か外部電源かを設定する関数
@@ -191,9 +274,27 @@ static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned char v
 	@param isOn : 内部電源か外部電源か（1 : 内部電源 , 0: 外部電源 )
 	@return 成功 : 0
 **/
-static long cpsdio_set_internal_battery( unsigned long BaseAddr, unsigned char isOn )
+static long cpsdio_set_internal_power_supply( unsigned long BaseAddr, unsigned char isOn )
 {
-	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_INTERNALBATTERY_CPS_DIO_0808 ) , isOn );
+	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function get Power Supply.　（Internal or External).
+	@param BaseAddr : Base Address
+	@param isOn : select Power Supply ( 1 : Internal, 0 : External )
+	@return true : 0
+	@~Japanese
+	@brief デジタル出力の内部電源か外部電源かを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param isOn : 内部電源か外部電源か（1 : 内部電源 , 0: 外部電源 )
+	@return 成功 : 0
+**/
+static long cpsdio_get_internal_power_supply( unsigned long BaseAddr, unsigned char *isOn )
+{
+	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
 	return 0;
 }
 
@@ -349,7 +450,7 @@ static long cpsdio_get_dio_portnum( int node, unsigned char type, unsigned short
 	@~Japanese
 	@brief デジタル機器のデバイス名を取得する関数
 	@param node : ノード
-	@param wNum : デバイス名
+	@param devName : デバイス名
 	@return 成功 : 0
 **/
 static long cpsdio_get_dio_devname( int node, unsigned char devName[] )
@@ -434,6 +535,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	struct cpsdio_ioctl_arg ioc;
 	memset( &ioc, 0 , sizeof(ioc) );
 
+	if ( dev == (PCPSDIO_DRV_FILE)NULL ){
+		DEBUG_CPSDIO_IOCTL(KERN_INFO"CPSDIO_DRV_FILE NULL POINTER.");
+		return -EFAULT;
+	}
 	switch( cmd ){
 
 		case IOCTL_CPSDIO_INP_PORT:
@@ -444,7 +549,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsdio_read_digital_input((unsigned long)dev->baseAddr , &valb );
+					cpsdio_read_digital_input((unsigned long)dev->baseAddr , ioc.port, &valb );
 					ioc.val = (unsigned int) valb;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -462,7 +567,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
-					cpsdio_write_digital_output( (unsigned long)dev->baseAddr , valb );
+					cpsdio_write_digital_output( (unsigned long)dev->baseAddr , ioc.port, valb );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
@@ -474,7 +579,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsdio_read_digital_output_echo((unsigned long)dev->baseAddr , &valb );
+					cpsdio_read_digital_output_echo((unsigned long)dev->baseAddr , ioc.port, &valb );
 					ioc.val = (unsigned int) valb;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -483,7 +588,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 
-		case IOCTL_CPSDIO_SET_INTERNAL_BAT:
+		case IOCTL_CPSDIO_SET_INTERNAL_POW:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
@@ -493,9 +598,26 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
-					cpsdio_set_internal_battery( (unsigned long)dev->baseAddr , valb );
+					cpsdio_set_internal_power_supply( (unsigned long)dev->baseAddr , valb );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
+					break;
+
+		case IOCTL_CPSDIO_GET_INTERNAL_POW:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					cpsdio_get_internal_power_supply( (unsigned long)dev->baseAddr , &valb );
+					ioc.val = (unsigned int) valb;
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
 					break;
 
 		case IOCTL_CPSDIO_SET_FILTER:
@@ -665,26 +787,37 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 **/
 static int cpsdio_open(struct inode *inode, struct file *filp )
 {
+
 	int ret;
 	PCPSDIO_DRV_FILE dev;
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
 	int iRet = 0;
+	int nodeNo = 0;
+
+	nodeNo = iminor( inode );
 
 	DEBUG_CPSDIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
-		dev = (PCPSDIO_DRV_FILE)inode->i_private;
-		filp->private_data =  (PCPSDIO_DRV_FILE)dev;
+	if (notFirstOpenFlg[nodeNo]) {		// 初回オープンでなければ（segmentation fault暫定対策）
+		if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
+			dev = (PCPSDIO_DRV_FILE)inode->i_private;
+			filp->private_data =  (PCPSDIO_DRV_FILE)dev;
 
-		if( dev->ref ){
-			dev->ref++;
-			return 0;
+			if( dev->ref ){
+				dev->ref++;
+				return 0;
+			}else{
+				return -EFAULT;
+			}
 		}
 	}
-
 	filp->private_data = (PCPSDIO_DRV_FILE)kmalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
+	if( filp->private_data == (PCPSDIO_DRV_FILE)NULL ){
+		iRet = -ENOMEM;
+		goto NOT_MEM_PRIVATE_DATA;
+	}
 	dev = (PCPSDIO_DRV_FILE)filp->private_data;
 	inode->i_private = dev;
 
@@ -706,6 +839,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	do{
 		if( cps_dio_data[cnt].ProductNumber == -1 ) {
 			iRet = -EFAULT;
+			DEBUG_CPSDIO_OPEN(KERN_INFO"product_id:%x", product_id);
 			goto NOT_FOUND_DIO_PRODUCT;
 		}
 		if( cps_dio_data[cnt].ProductNumber == product_id ){
@@ -718,13 +852,14 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	ret = request_irq(AM335X_IRQ_NMI, cpsdio_isr_func, IRQF_SHARED, "cps-dio-intr", dev);
 
 	if( ret ){
-		printk(" request_irq failed.(%x) \n",ret);
+		DEBUG_CPSDIO_OPEN(" request_irq failed.(%x) \n",ret);
 	}
 
 	// spin_lock initialize
 	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
+	notFirstOpenFlg[nodeNo]++;		// segmentation fault暫定対策フラグインクリメント
 
 	return 0;
 NOT_FOUND_DIO_PRODUCT:
@@ -735,6 +870,11 @@ NOT_FOUND_DIO_PRODUCT:
 
 NOT_IOMEM_ALLOCATION:
 	kfree( dev );
+
+NOT_MEM_PRIVATE_DATA:
+ 
+	inode->i_private = (PCPSDIO_DRV_FILE)NULL;
+	filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 
 	return iRet;
 }
@@ -758,7 +898,9 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 
 	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
 		dev = (PCPSDIO_DRV_FILE)inode->i_private;
-		dev->ref--;
+
+		if( dev->ref > 0 ) dev->ref--;
+
 		if( dev->ref == 0 ){
 
 			free_irq(AM335X_IRQ_NMI, dev);
@@ -771,8 +913,8 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 			kfree( dev );
 			
 			inode->i_private = (PCPSDIO_DRV_FILE)NULL;
-			filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 		}
+		filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 	}
 	return 0;
 
@@ -786,7 +928,7 @@ static struct file_operations cpsdio_fops = {
 		.owner = THIS_MODULE,///< owner's name
 		.open = cpsdio_open,///< open
 		.release = cpsdio_close,///< close
-		.unlocked_ioctl = cpsdio_ioctl,/// I/O Control
+		.unlocked_ioctl = cpsdio_ioctl,///< I/O Control
 };
 
 /**
@@ -805,6 +947,7 @@ static int cpsdio_init(void)
 	int major;
 	int cnt;
 	struct device *devlp = NULL;
+	int	dioNum = 0;
 
 	// CPS-MCS341 Device Init
 	contec_mcs341_controller_cpsDevicesInit();
@@ -851,7 +994,12 @@ static int cpsdio_init(void)
 				unregister_chrdev_region( dev, cpsdio_max_devs );
 				return PTR_ERR(devlp);
 			}
+			dioNum++;
 		}
+	}
+
+	if (dioNum) {
+		notFirstOpenFlg = (int *)kzalloc( sizeof(int) * dioNum, GFP_KERNEL );	// segmentation fault暫定対策フラグメモリ確保
 	}
 
 	return 0;
@@ -868,6 +1016,8 @@ static void cpsdio_exit(void)
 
 	dev_t dev = MKDEV(cpsdio_major , 0 );
 	int cnt;
+
+	kfree(notFirstOpenFlg);		// segmentation fault暫定対策フラグメモリ解放
 
 	for( cnt = cpsdio_minor; cnt < ( cpsdio_minor + cpsdio_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_DIO ) ){

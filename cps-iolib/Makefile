@@ -21,5 +21,8 @@ modules_install:
 release_copy:
 	cp -p ./cps-iolib.ko ../../release/
 
+sdk_install:
+	cp -p ./cps-iolib.h ${CPS_SDK_INSTALL_FULLDIR}/${CPS_SDK_ROOTFS}/usr/local/include
+
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions vtty Module.symvers modules.order 

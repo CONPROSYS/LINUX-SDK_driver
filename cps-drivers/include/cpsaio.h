@@ -131,6 +131,19 @@ struct cpsaio_direct_command_arg{
 /* CPS-AIO AO STATUS */
 #define CPS_AIO_AO_STATUS_CALIBRATION_BUSY	0x100
 
+/*!
+ @~English
+ @name MEM STATUS (define)
+ @~Japanese
+ @name メモリステータス
+*/
+/// @{
+#define CPU_AIO_MEMSTATUS_DRE	0x0001	///< Data Read Enable bit
+#define CPU_AIO_MEMSTATUS_MDRE	0x0002	///< Multi Data Read Enable bit
+#define CPU_AIO_MEMSTATUS_DWE	0x0100 ///< Data Write Enable bit
+#define CPU_AIO_MEMSTATUS_MDWE	0x0200	///< Multi Data Write Enable bit
+/// @}
+
 /* Driver's Code */
 
 #define CPSAIO_MAGIC	'f'
@@ -155,7 +168,7 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_GETCHANNEL_AI	_IOR(CPSAIO_MAGIC, 17, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GETCHANNEL_AO	_IOR(CPSAIO_MAGIC, 18, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GETRESOLUTION	_IOR(CPSAIO_MAGIC, 19, struct cpsaio_ioctl_arg)
-
+#define IOCTL_CPSAIO_GETMEMSTATUS	_IOR(CPSAIO_MAGIC, 20, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SETECU_SIGNAL	_IOW(CPSAIO_MAGIC, 21, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SET_OUTPULSE0	_IO(CPSAIO_MAGIC, 22)
 #define IOCTL_CPSAIO_SET_CLOCK_AI	_IOW(CPSAIO_MAGIC, 23, struct cpsaio_ioctl_arg)
@@ -176,6 +189,9 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_GET_CALIBRATION_AO	_IOW(CPSAIO_MAGIC, 38, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_CLEAR_EEPROM _IO(CPSAIO_MAGIC, 39)
 #define IOCTL_CPSAIO_GETMAXCHANNEL _IOR(CPSAIO_MAGIC, 40, struct cpsaio_ioctl_arg)
+
+#define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI _IOR(CPSAIO_MAGIC, 41, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 42, struct cpsaio_ioctl_arg)
 
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
