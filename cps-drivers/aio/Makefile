@@ -7,8 +7,13 @@ PWD       := $(shell pwd)
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel #target kernel source path
 
 # double and float calc option (soft-float version)
-KBUILD_CFLAGS += -mfloat-abi=softfp
-KBUILD_AFLAGS += -mfloat-abi=softfp
+#ifeq ($(CROSS_COMPILE),arm-linux-gnueabihf-)
+#  KBUILD_CFLAGS += -mfloat-abi= 
+#  KBUILD_AFLAGS += -mfloat-abi= 
+#else
+  KBUILD_CFLAGS += -mfloat-abi=softfp
+  KBUILD_AFLAGS += -mfloat-abi=softfp
+#endif
 
 EXTRA_CFLAGS	:= -DDEBUG=0
 EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include

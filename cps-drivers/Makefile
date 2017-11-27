@@ -1,5 +1,5 @@
-subdirs = system com dio aio ssi
-MAKE=make --no-print-directory -e
+subdirs = system aio com dio ssi
+MAKE=make --no-print-directory
 
 all:	
 	@for subdir in $(subdirs) ; do \

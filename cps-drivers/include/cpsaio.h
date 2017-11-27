@@ -55,7 +55,7 @@ typedef struct __cpsaio_device_data{
 }CPSAIO_DEV_DATA, *PCPSAIO_DEV_DATA;
 	
 /**
-	@struct __cpsaio_device_data
+	@struct cpsaio_ioctl_arg
 	@~English
 	@brief I/O Control structure
 	@~Japanese
@@ -66,6 +66,19 @@ struct cpsaio_ioctl_arg{
 	unsigned short ch;	///< channel
 	unsigned long val;	///< value
 };
+
+/**
+	@struct cpsaio_ioctl_string_arg
+	@~English
+	@brief I/O Control structure ( String )
+	@~Japanese
+	@brief I/O コントロール 構造体(文字列用)
+**/
+struct cpsaio_ioctl_string_arg{
+	unsigned long index;	///< index
+	unsigned char str[32];	///< string
+};
+
 
 
 /**
@@ -193,11 +206,12 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI _IOR(CPSAIO_MAGIC, 41, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 42, struct cpsaio_ioctl_arg)
 
+#define IOCTL_CPSAIO_GET_DRIVER_VERSION	_IOR(CPSAIO_MAGIC, 43, struct cpsaio_ioctl_string_arg)
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_arg)
-#define IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_command_arg)
-#define IOCTL_CPSAIO_DIRECT_COMMAND_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_command_arg)
-#define IOCTL_CPSAIO_DIRECT_COMMAND_CALL	_IO(CPSAIO_MAGIC, 66)
+#define IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT	_IOW(CPSAIO_MAGIC, 66, struct cpsaio_direct_command_arg)
+#define IOCTL_CPSAIO_DIRECT_COMMAND_INPUT _IOR(CPSAIO_MAGIC, 67, struct cpsaio_direct_command_arg)
+#define IOCTL_CPSAIO_DIRECT_COMMAND_CALL	_IO(CPSAIO_MAGIC, 68)
 
 /**************************************************/

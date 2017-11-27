@@ -20,13 +20,13 @@
 #define	OFFSET_EXT_COMMAND_UPPER_CPS_AIO 0x22	///< Extension command address-upper register.
 #define	OFFSET_EXT_DATA_LOWER_CPS_AIO 0x24	///< Extension data-lower register.
 #define	OFFSET_EXT_DATA_UPPER_CPS_AIO 0x26	///< Extension data-upper register.
-#define	OFFSET_ECUCHECK_CPS_AIO	0x28	///< ECU check register.
-#define	OFFSET_INTERRUPT_LOWER_CPS_AIO	0x2C	///< Interrupt lower register.
-#define	OFFSET_INTERRUPT_UPPER_CPS_AIO	0x2E	///< Interrupt upper register.
-#define	OFFSET_ECU_COMMAND_LOWER_CPS_AIO	0x28	///< ECU command address-lower register.
+#define	OFFSET_ECU_INTERRUPT_CHECK_CPS_AIO	0x28	///< ECU Interrupt check register.　（READ)
+#define	OFFSET_INTERRUPT_LOWER_CPS_AIO	0x2C	///< Interrupt lower register.　（READ)
+#define	OFFSET_INTERRUPT_UPPER_CPS_AIO	0x2E	///< Interrupt upper register.　（READ)
+#define	OFFSET_ECU_COMMAND_LOWER_CPS_AIO	0x28	///< ECU command address-lower register.　（WRITE)
 #define	OFFSET_ECU_COMMAND_UPPER_CPS_AIO	0x2A	///< ECU command address-upper register.
-#define	OFFSET_ECU_DATA_LOWER_CPS_AIO 0x2C	///< ECU data-lower register.
-#define	OFFSET_ECU_DATA_UPPER_CPS_AIO 0x2E	///< ECU data-upper register.
+#define	OFFSET_ECU_DATA_LOWER_CPS_AIO 0x2C	///< ECU data-lower register.　（WRITE)
+#define	OFFSET_ECU_DATA_UPPER_CPS_AIO 0x2E	///< ECU data-upper register.　（WRITE)
 
 /// @}
 

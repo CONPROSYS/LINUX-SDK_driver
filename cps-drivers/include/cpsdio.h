@@ -20,7 +20,7 @@ typedef struct __cpsdio_device_data{
 }CPSDIO_DEV_DATA, *PCPSDIO_DEV_DATA;
 
 /**
-	@struct __cpsdio_device_data
+	@struct cpsdio_ioctl_arg
 	@~English
 	@brief I/O Control structure
 	@~Japanese
@@ -29,9 +29,19 @@ typedef struct __cpsdio_device_data{
 struct cpsdio_ioctl_arg{
 	unsigned int port;	///< port
 	unsigned int val;///< value
-	unsigned char str[32];
 };
 
+/**
+	@struct cpsdio_ioctl_string_arg
+	@~English
+	@brief I/O Control structure ( String )
+	@~Japanese
+	@brief I/O コントロール 構造体(文字列用)
+**/
+struct cpsdio_ioctl_string_arg{
+	unsigned long index;///< index
+	unsigned char str[32];	///< string
+};
 
 /*  Error Code */
 
@@ -69,14 +79,14 @@ struct cpsdio_ioctl_arg{
 #define IOCTL_CPSDIO_GET_INT_EGDE	_IOR(CPSDIO_MAGIC, 12, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_INP_PORTNUM	_IOR(CPSDIO_MAGIC, 13, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_OUTP_PORTNUM	_IOR(CPSDIO_MAGIC, 14, struct cpsdio_ioctl_arg)
-#define IOCTL_CPSDIO_GET_DEVICE_NAME	_IOR(CPSDIO_MAGIC, 15, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_GET_DEVICE_NAME	_IOR(CPSDIO_MAGIC, 15, struct cpsdio_ioctl_string_arg)
 #define IOCTL_CPSDIO_SET_CALLBACK_PROCESS _IOW(CPSDIO_MAGIC, 16, struct cpsdio_ioctl_arg)
 
 #define IOCTL_CPSDIO_SET_DERECTION	_IOW(CPSDIO_MAGIC, 17, struct cpsdio_ioctl_arg )
 #define IOCTL_CPSDIO_GET_DERECTION	_IOR(CPSDIO_MAGIC, 18, struct cpsdio_ioctl_arg )
 #define IOCTL_CPSDIO_GET_INTERNAL_POW	_IOW(CPSDIO_MAGIC, 19, struct cpsdio_ioctl_arg)
 
-
+#define IOCTL_CPSDIO_GET_DRIVER_VERSION	_IOR(CPSDIO_MAGIC, 20, struct cpsdio_ioctl_string_arg)
 
 #define IOCTL_CPSDIO_SET_INTERNAL_BAT	IOCTL_CPSDIO_SET_INTERNAL_POW
 

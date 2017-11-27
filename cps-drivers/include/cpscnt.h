@@ -19,7 +19,7 @@ typedef struct __cpscnt_device_data{
 }CPSCNT_DEV_DATA, *PCPSCNT_DEV_DATA;
 
 /**
-	@struct __cpscnt_device_data
+	@struct cpscnt_ioctl_arg
 	@~English
 	@brief I/O Control structure
 	@~Japanese
@@ -28,9 +28,19 @@ typedef struct __cpscnt_device_data{
 struct cpscnt_ioctl_arg{
 	unsigned long val;///< value
 	unsigned int ch;///< Channel
-	unsigned char str[32];
 };
 
+/**
+	@struct cpscnt_ioctl_string_arg
+	@~English
+	@brief I/O Control structure ( String )
+	@~Japanese
+	@brief I/O コントロール 構造体(文字列用)
+**/
+struct cpscnt_ioctl_string_arg{
+	unsigned long index;///< index
+	unsigned char str[32];	///< string
+};
 
 /*  Error Code */
 
@@ -81,7 +91,7 @@ struct cpscnt_ioctl_arg{
 #define IOCTL_CPSCNT_SET_SELECT_COMMON_INPUT	_IOW(CPSCNT_MAGIC, 18, struct cpscnt_ioctl_arg)
 #define IOCTL_CPSCNT_GET_SELECT_COMMON_INPUT	_IOR(CPSCNT_MAGIC, 19, struct cpscnt_ioctl_arg)
 
-#define IOCTL_CPSCNT_GET_DEVICE_NAME			_IOR(CPSCNT_MAGIC, 20, struct cpscnt_ioctl_arg)
+#define IOCTL_CPSCNT_GET_DEVICE_NAME			_IOR(CPSCNT_MAGIC, 20, struct cpscnt_ioctl_string_arg)
 
 #define IOCTL_CPSCNT_START_COUNT			_IOW(CPSCNT_MAGIC, 21, struct cpscnt_ioctl_arg)
 #define IOCTL_CPSCNT_STOP_COUNT			_IOW(CPSCNT_MAGIC, 22, struct cpscnt_ioctl_arg)
@@ -102,5 +112,7 @@ struct cpscnt_ioctl_arg{
 #define IOCTL_CPSCNT_GET_MODE				_IOW(CPSCNT_MAGIC, 32, struct cpscnt_ioctl_arg)
 
 #define IOCTL_CPSCNT_GET_Z_LOGIC			_IOW(CPSCNT_MAGIC, 33, struct cpscnt_ioctl_arg)
+
+#define IOCTL_CPSCNT_GET_DRIVER_VERSION	_IOR(CPSCNT_MAGIC, 34, struct cpscnt_ioctl_string_arg)
 
 /**************************************************/
