@@ -144,8 +144,8 @@ typedef struct __cps_device_id{
 
 #define CPS_DEVICE_COMMON_MIRROR_REG_ADDR(x)	(0x0E + x)
 
-#define CPS_DEVICE_COMMON_CATEGORY_GET(val) ( ( val & 0xF0 ) >> 4 )
-#define CPS_DEVICE_COMMON_REVISION_GET(val) ( val & 0x0F )
+#define CPS_DEVICE_COMMON_REVISION_BOARDVER_GET(val) ( ( val & 0xF0 ) >> 4 )
+#define CPS_DEVICE_COMMON_REVISION_FPGAVER_GET(val) ( val & 0x0F )
 
 #define CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED	(0x0000)
 #define CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE	(0x0001)

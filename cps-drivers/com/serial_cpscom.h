@@ -35,7 +35,8 @@
 #endif
 
 #define UPIO_CPS			SERIAL_IO_CPS
-#define PORT_CPS16550A		192
+#define PORT_CPS16550	192
+#define PORT_CPS16550A		193
 /* cpscom_serial_port structure based old_serial_port added mapbase */
 struct cpscom_serial_port {
 	unsigned int	uart;

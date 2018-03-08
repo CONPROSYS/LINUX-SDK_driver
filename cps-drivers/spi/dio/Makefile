@@ -17,7 +17,7 @@ CPS_DRIVER_REELASE_DIR:=../../release/mc341/
 EXTRA_CFLAGS +=-I$(src)/../../../include/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
-CPS_DRIVER_REELASE_DIR:=../../release/ 
+CPS_DRIVER_REELASE_DIR:=$(CPS_SDK_ROOTDIR)/driver/release/mc341/ 
 EXTRA_CFLAGS +=-I$(src)/../include/
 endif
 

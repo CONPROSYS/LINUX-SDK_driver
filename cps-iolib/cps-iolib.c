@@ -1,6 +1,14 @@
+/**
+	@file cps-iolib.c
+	@brief CONPROSYS IO-LIB Driver with CPS-MCS341.
+	@author Syunsuke Okamoto <okamoto@contec.jp>
+	@par Version 1.0.5
+	@par Copyright 2015  CONTEC Co., Ltd.
+	@par License : GPL Ver.2
+**/
 /*
- *  Driver for cps-iolib with CPS-MCS341.
- * Version 1.0.3
+ *  cps-iolib Driver with CPS-MCS341.
+ * Version 1.0.5
  *
  *  I/O Control CPS-MCS341 Series (only) Driver by CONTEC .
  *
@@ -35,34 +43,62 @@
 
 #include "cps_common_io.h"
 
+#define DRV_VERSION	"1.0.5"
+
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("CONTEC I/O Driver for CPS-MCS341");
-MODULE_AUTHOR("CONTEC");
+MODULE_DESCRIPTION("CONTEC I/O Driver for CPS-MCS341");
+MODULE_AUTHOR("syunsuke okamoto");
+
+MODULE_VERSION(DRV_VERSION);
 
 #include "cps-iolib.h"
 
 #define CPSIO_DRIVER_NAME "cps-iolib"
 
-struct cpsio_data{
-	rwlock_t lock;
-	unsigned char val;
-};
+/**
+	@struct cpsio_data
+	@~English
+	@brief CPS IO-LIB driver's Data
+	@~Japanese
+	@brief CPS IO-LIB ドライバファイル構造体
+**/
+typedef struct cpsio_data{
+	rwlock_t lock;		///< lock file
+	unsigned char val;	///< value
+}CPSIO_DRV_FILE,*PCPSIO_DRV_FILE;
 
-static int cpsio_max_devs = 1;			/*device count */
+/*!  @brief device count */
+static int cpsio_max_devs = 1;
+/*!  @brief driver major number */
 static int cpsio_major = 0;
-static int cpsio_minor = 0; 
+/*!  @brief driver minor number */
+static int cpsio_minor = 0;
 
 static struct cdev cpsio_cdev;
 static struct class *cpsio_class = NULL;
 
 static dev_t cpsio_dev;
 
-static void __iomem *map_baseaddr ;
+static void __iomem *map_baseaddr ;	///< iomap Base Address
 
-static unsigned int ref_count;
+static unsigned int ref_count;	///< reference Count
 
 /***** file operation functions *******************************/
 
+/**
+	@~English
+	@brief cpsio_ioctl
+	@param filp : struct file pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsio_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/
 static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
 	struct cpsio_data *dev = filp->private_data;
@@ -148,13 +184,23 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 	return 0;
 }
 
-
+/**
+	@~English
+	@brief This function is called by open user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はOPEN関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+**/
 static int cpsio_open(struct inode *inode, struct file *filp )
 {
 //	void __iomem *allocaddr = NULL;
 	inode->i_private = inode;
 	filp->private_data = filp;
-
 
 //	if( ref_count == 0 ) {
 		/* I/O Mapping */
@@ -172,6 +218,18 @@ static int cpsio_open(struct inode *inode, struct file *filp )
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function is called by close user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はCLOSE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+**/
 static int cpsio_close(struct inode * inode, struct file *file ){
 
 
@@ -182,14 +240,25 @@ static int cpsio_close(struct inode * inode, struct file *file ){
 	return 0;
 }
 
-
+/**
+	@struct cpsio_fops
+	@brief CPS IO-LIB file operations
+**/
 static struct file_operations cpsio_fops = {
-		.owner = THIS_MODULE,
-		.open = cpsio_open,
-		.release = cpsio_close,
-		.unlocked_ioctl = cpsio_ioctl,
+		.owner = THIS_MODULE,					///< owner's name
+		.open = cpsio_open,						///< open
+		.release = cpsio_close,				///< close
+		.unlocked_ioctl = cpsio_ioctl,	///< I/O control
 };
 
+
+/**
+	@brief cps_iolib init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cps-iolib 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsio_init(void)
 {
 
@@ -267,6 +336,12 @@ static int cpsio_init(void)
 
 }
 
+/**
+	@~English
+	@brief cps-iolib exit function.
+	@~Japanese
+	@brief cps-iolib 終了関数.
+**/
 static void cpsio_exit(void)
 {
 
