@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo /sys/bus/platform/drivers/cps-driver/dio0_di_value
-

@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.14
+ * Version 1.1.1
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.0"
+#define DRV_VERSION	"1.1.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -1346,6 +1346,46 @@ void mcs341_controller_timer_function(unsigned long arg)
 
 /**
 	@~English
+	@brief MCS341 Device's address write 1byte data.
+	@param dev : device number
+	@param offset : Address Offset
+	@param valb : value ( unsigned char )
+	@~Japanese
+	@brief MCS341 Deviceのアドレスにデータを1バイト分書き出す関数
+	@param dev : デバイスID
+	@param offset : オフセット
+	@param valb : 値
+**/
+static void contec_mcs341_device_outb(unsigned int dev, unsigned int offset, unsigned char valb )
+{
+	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %x \n", dev, offset, valb );
+	cps_common_outb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_outb);
+
+/**
+	@~English
+	@brief MCS341 Device's address read 1byte data.
+	@param dev : device number
+	@param offset : Address Offset
+	@param valb : value ( unsigned char )
+	@~Japanese
+	@brief MCS341 Deviceのアドレスにデータを1バイト分読み出す関数
+	@param dev : デバイスID
+	@param offset : オフセット
+	@param valb : 値
+**/
+static void contec_mcs341_device_inpb(unsigned int dev, unsigned int offset, unsigned char *valb )
+{
+	if( valb != (unsigned char *)NULL ){
+		cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
+		DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %x\n", dev, offset, *valb );
+	}
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_inpb);
+
+/**
+	@~English
 	@brief MCS341 Device's address write 2byte data.
 	@param dev : device number
 	@param offset : Address Offset
@@ -1361,7 +1401,7 @@ static void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, uns
 	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %hx \n", dev, offset, valw );
 	cps_common_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
 }
-
+EXPORT_SYMBOL_GPL(contec_mcs341_device_outw);
 /**
 	@~English
 	@brief MCS341 Device's address read 2byte data.
@@ -1370,15 +1410,70 @@ static void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, uns
 	@param valw : value ( unsigned short )
 	@~Japanese
 	@brief MCS341 Deviceのアドレスにデータを2バイト分読み出す関数
-	@param dev : デバイスID
+	@param dev :　デバイスの製品番号 ( < 接続されたデバイス数 )
 	@param offset : オフセット
 	@param valw : 値
 **/
 static void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, unsigned short *valw )
 {
-	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
-	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
+	if( valw != (unsigned short *)NULL ){
+		cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+		DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
+	}
 }
+EXPORT_SYMBOL_GPL(contec_mcs341_device_inpw);
+
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device Revision Address.
+	@param dev : Target DeviceNumber ( < deviceNumber )
+	@return Success : Resion Address Values , Fail : 0
+	@~Japanese
+	@brief MCS341 ターゲットのRevisionアドレスの値を取得する関数。
+	@param dev :　ターゲットのデバイスの製品番号 ( < 接続されたデバイス数 )
+	@par この関数は内部関数です。
+	@return 成功  Revisionアドレスの値, 失敗 0
+**/
+static unsigned char _contec_mcs341_device_revision_value_get( int dev ){
+
+	unsigned char valb;
+
+	contec_mcs341_device_inpb(dev, CPS_DEVICE_COMMON_REVISION_ADDR, &valb );
+
+	return valb;
+}
+
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device FPGA Version.
+	@param dev : Target DeviceNumber ( < deviceNumber )
+	@return Success : FPGA Version( from 0 to 15 ) , Fail : -1
+	@~Japanese
+	@brief MCS341 ターゲットのFPGAバージョンを取得する関数。
+	@param dev : ターゲットのデバイスID
+	@return 成功  FPGA バージョン( 0 to 15), 失敗 -1
+**/
+static unsigned char contec_mcs341_device_fpga_version_get( int dev ){
+	if( dev >= deviceNumber ) return -1;
+	return CPS_DEVICE_COMMON_REVISION_FPGAVER_GET(_contec_mcs341_device_revision_value_get( dev ) );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_fpga_version_get);
+
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device BOARD Version.
+	@param dev : Target DeviceNumber ( < deviceNumber )
+	@return Success : Board Version , Fail : -1
+	@~Japanese
+	@brief MCS341 ターゲットのBOARD バージョンを取得する関数。
+	@param dev : ターゲットのデバイスの製品番号 ( < 接続されたデバイス数 )
+	@return 成功  Board Version ( 0 - 15 ), 失敗  -1
+**/
+static unsigned char contec_mcs341_device_board_version_get( int dev ){
+	if( dev >= deviceNumber ) return -1;
+	return CPS_DEVICE_COMMON_REVISION_BOARDVER_GET(_contec_mcs341_device_revision_value_get( dev ) );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_board_version_get);
 
 /**
 	@~English
@@ -1402,7 +1497,8 @@ static unsigned char contec_mcs341_device_FindCategory( int *startIndex,int Cate
 	 ) return 0;
 
 	for( cnt = *startIndex ; cnt < CPS_DEVICE_MAX_NUM ; cnt ++ ){
-		cps_common_inpb( (unsigned long)(map_devbaseaddr[cnt] + CPS_DEVICE_COMMON_CATEGORY_ADDR ), &valb );
+		contec_mcs341_device_inpb( cnt, CPS_DEVICE_COMMON_CATEGORY_ADDR, &valb );
+//		cps_common_inpb( (unsigned long)(map_devbaseaddr[cnt] + CPS_DEVICE_COMMON_CATEGORY_ADDR ), &valb );
 		if ( valb  == CategoryNum ) break;
  	} 
 
@@ -1431,7 +1527,8 @@ static unsigned char contec_mcs341_device_IsCategory( int targetDevNum ,int Cate
 	if( targetDevNum >= CPS_DEVICE_MAX_NUM ||
 		targetDevNum >= deviceNumber ) return 0;
 
-	cps_common_inpb( (unsigned long)(map_devbaseaddr[targetDevNum] + CPS_DEVICE_COMMON_CATEGORY_ADDR ), &valb );
+	contec_mcs341_device_inpb( targetDevNum, CPS_DEVICE_COMMON_CATEGORY_ADDR, &valb );
+//	cps_common_inpb( (unsigned long)(map_devbaseaddr[targetDevNum] + CPS_DEVICE_COMMON_CATEGORY_ADDR ), &valb );
 	if ( valb == CategoryNum ) return 1;
 
  return 0;
@@ -1458,7 +1555,8 @@ static unsigned char contec_mcs341_device_FindDevice( int *startIndex, int Devic
 	if( *startIndex < 1 || *startIndex >= deviceNumber ) return 0;
 
 	for( cnt = *startIndex ; cnt < CPS_DEVICE_MAX_NUM ; cnt ++ ){
-		cps_common_inpw( (unsigned long)(map_devbaseaddr[cnt] + CPS_DEVICE_COMMON_PRODUCTID_ADDR), &valw );
+		contec_mcs341_device_inpw( cnt, CPS_DEVICE_COMMON_PRODUCTID_ADDR, &valw );
+//		cps_common_inpw( (unsigned long)(map_devbaseaddr[cnt] + CPS_DEVICE_COMMON_PRODUCTID_ADDR), &valw );
 		if ( valw == DeviceNum ) break;
  	} 
 
@@ -1483,7 +1581,8 @@ static unsigned short contec_mcs341_device_productid_get( int dev ){
 	unsigned short valw;
 	
 	if( dev >= deviceNumber ) return 0;
-	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PRODUCTID_ADDR), &valw );
+	contec_mcs341_device_inpw( dev, CPS_DEVICE_COMMON_PRODUCTID_ADDR, &valw );
+//	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PRODUCTID_ADDR), &valw );
 
 	return valw;
 }
@@ -1504,7 +1603,9 @@ static unsigned short contec_mcs341_device_physical_id_get( int dev ){
 	unsigned short valw;
 	
 	if( dev >= deviceNumber ) return 0;
-	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PHYSICALID_ADDR), &valw );
+
+	contec_mcs341_device_inpw( dev, CPS_DEVICE_COMMON_PHYSICALID_ADDR, &valw );
+//	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PHYSICALID_ADDR), &valw );
 
 	return valw;
 }

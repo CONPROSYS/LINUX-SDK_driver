@@ -10,18 +10,26 @@
 
 #include <linux/gpio.h>
 #include <linux/ioctl.h>
-#define CPS_FPGA_ACCESS_WORD		0
-#define CPS_FPGA_ACCESS_BYTE_HIGH	1
-#define CPS_FPGA_ACCESS_BYTE_LOW	2
-#define CPS_FPGA_ACCESS_RESERVED	3
+#define CPS_FPGA_ACCESS_WORD		0	///< 16bit Access mode
+#define CPS_FPGA_ACCESS_BYTE_HIGH	1	///< 8bit Access mode( high )
+#define CPS_FPGA_ACCESS_BYTE_LOW	2	///< 8bit Access mode( low )
+#define CPS_FPGA_ACCESS_RESERVED	3	///< Reserved
 
 #ifndef GPIO_TO_PIN
   #define GPIO_TO_PIN( bank, gpio )	( 32 * (bank) + (gpio) )
 #endif
 
-#define CPS_FPGA_BYTE_LOW	GPIO_TO_PIN( 1, 31 )
-#define CPS_FPGA_BYTE_HIGH	GPIO_TO_PIN( 2, 5 )
+#define CPS_FPGA_BYTE_LOW	GPIO_TO_PIN( 1, 31 )	///< CPS-MCS341 8bit Access (Low)
+#define CPS_FPGA_BYTE_HIGH	GPIO_TO_PIN( 2, 5 )	///< CPS-MCS341 8bit Access (High)
 
+/**
+	@~English
+	@brief FPGA initialize.
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief FPGAの初期化処理。
+	@return 成功: 0 , 失敗: 0以外
+**/
 int cps_fpga_init(void)
 {
 	int ret;
@@ -38,7 +46,16 @@ int cps_fpga_init(void)
 
 }
 
-
+/**
+	@~English
+	@brief Set FPGA Access　Mode.
+	@param mode : mode ( CPS_FPGA_ACCESS_WORD, CPS_FPGA_ACCESS_BYTE_HIGH and CPS_FPGA_ACCESS_BYTE_LOW )
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はFPGAのアクセスモードを設定します。
+	@param mode : モード ( CPS_FPGA_ACCESS_WORD, CPS_FPGA_ACCESS_BYTE_HIGH もしくは CPS_FPGA_ACCESS_BYTE_LOW )
+	@return 成功: 0 , 失敗: 0以外
+**/
 int cps_fpga_access( int mode )
 {
 	int ret = 0;
@@ -64,6 +81,16 @@ int cps_fpga_access( int mode )
 
 
 /********************** Input / Output ****************************/
+/**
+	@~English
+	@brief Read FPGA Access　8bit mode.
+	@param addr : Address
+	@param data : value
+ 	@~Japanese
+	@brief この関数はFPGAのアドレスに8ビットアクセスしその値を読み出します。
+	@param addr : アドレス
+	@param data : データの値
+**/
 void cps_common_inpb(unsigned long addr, unsigned char *data )
 {
 
@@ -79,6 +106,16 @@ void cps_common_inpb(unsigned long addr, unsigned char *data )
 
 }
 
+/**
+	@~English
+	@brief Write FPGA Access　8bit mode.
+	@param addr : Address
+	@param data : value
+ 	@~Japanese
+	@brief この関数はFPGAのアドレスに8ビットアクセスしその値を書き込みます。
+	@param addr : アドレス
+	@param data : データの値
+**/
 void cps_common_outb(unsigned long addr, unsigned char data )
 {
 	if( ( addr ) & 0x01 ) {
@@ -93,6 +130,16 @@ void cps_common_outb(unsigned long addr, unsigned char data )
 
 }
 
+/**
+	@~English
+	@brief Read FPGA Access　16bit mode.
+	@param addr : Address
+	@param data : value
+ 	@~Japanese
+	@brief この関数はFPGAのアドレスに16ビットアクセスしその値を読み出します。
+	@param addr : アドレス
+	@param data : データの値
+**/
 void cps_common_inpw(unsigned long addr, unsigned short *data )
 {
 
@@ -102,6 +149,16 @@ void cps_common_inpw(unsigned long addr, unsigned short *data )
 
 }
 
+/**
+	@~English
+	@brief Write FPGA Access　16bit mode.
+	@param addr : Address
+	@param data : value
+ 	@~Japanese
+	@brief この関数はFPGAのアドレスに16ビットアクセスしその値を書き込みます。
+	@param addr : アドレス
+	@param data : データの値
+**/
 void cps_common_outw(unsigned long addr, unsigned short data )
 {
 
@@ -111,14 +168,29 @@ void cps_common_outw(unsigned long addr, unsigned short data )
 
 }
 
-/***********************************************************************/
-/** Memory Allocate and Release                              **/
-/***********************************************************************/
+/*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
+/*- Memory Allocate and Release                              -*/
+/*$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$*/
 
-#define CPS_COMMON_MEM_NONREGION	0
-#define CPS_COMMON_MEM_REGION			1
+#define CPS_COMMON_MEM_NONREGION	0 ///< リージョン確認なし
+#define CPS_COMMON_MEM_REGION			1	///< リージョン確認あり
 
-
+/**
+	@~English
+	@brief Allocate virtual memory mapping.
+	@param baseMemory : mamory address
+	@param areaSize : size
+	@param drvName : Driver Name
+	@param isRegion : Region ( CPS_COMMON_MEM_NONREGION or CPS_COMMON_MEM_REGION )
+	@return success: Mapped Address , failed: less than 0
+ 	@~Japanese
+	@brief この関数は仮想メモリのマッピングを生成します。
+	@param baseMemory : メモリアドレス
+	@param areaSize : サイズ
+	@param drvName : ドライバ名
+	@param isRegion : リージョン ( CPS_COMMON_MEM_NONREGION or CPS_COMMON_MEM_REGION )
+	@return 成功: メモリアドレス , 失敗: 0未満
+**/
 static void __iomem *cps_common_mem_alloc( unsigned long baseMemory, unsigned int areaSize, char* drvName , unsigned int isRegion )
 {
 	int ret = 0;
@@ -142,6 +214,22 @@ static void __iomem *cps_common_mem_alloc( unsigned long baseMemory, unsigned in
 	return mappedAddress;
 }
 
+/**
+	@~English
+	@brief Free virtual memory mapping.
+	@param baseMemory : mamory address
+	@param areaSize : size
+	@param mappedAddress : Virtual Memory Address
+	@param isRegion : Region ( CPS_COMMON_MEM_NONREGION or CPS_COMMON_MEM_REGION )
+	@return success: Mapped Address , failed: less than 0
+ 	@~Japanese
+	@brief この関数は仮想メモリのマッピングを解放します。
+	@param baseMemory : メモリアドレス
+	@param areaSize : サイズ
+	@param mappedAddress : 仮想メモリアドレス
+	@param isRegion : リージョン ( CPS_COMMON_MEM_NONREGION or CPS_COMMON_MEM_REGION )
+	@return 成功: メモリアドレス , 失敗: 0未満
+**/
 static int cps_common_mem_release( unsigned long baseMemory, unsigned int areaSize, unsigned char __iomem *mappedAddress ,unsigned int isRegion)
 {
 	int ret = 0;

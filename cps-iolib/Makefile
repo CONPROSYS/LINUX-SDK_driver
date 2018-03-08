@@ -16,7 +16,7 @@ modules_install:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
 
 release_copy:
-	cp -p ./cps-iolib.ko ../../release/
+	cp -p ./cps-iolib.ko ../release/mcs341/
 
 sdk_install:
 	cp -p ./cps-iolib.h ${CPS_SDK_INSTALL_FULLDIR}/${CPS_SDK_ROOTFS}/usr/local/include

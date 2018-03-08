@@ -17,7 +17,7 @@ KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source pat
 CPS_DRIVER_REELASE_DIR:=../release/mcs341/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
-CPS_DRIVER_REELASE_DIR:=../../release/
+CPS_DRIVER_REELASE_DIR:= $(CPS_SDK_ROOTDIR)/driver/release/mcs341/
 EXTRA_CFLAGS	+= -DCONFIG_CONPROSYS_SDK
 endif
 
