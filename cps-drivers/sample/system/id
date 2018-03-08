@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo /sys/bus/platform/drivers/cps-driver/id

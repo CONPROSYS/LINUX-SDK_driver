@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo $1 > /sys/bus/platform/drivers/cps-driver/dio0_do_value
+

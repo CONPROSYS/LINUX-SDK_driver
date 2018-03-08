@@ -1,5 +1,6 @@
 #!/bin/bash
 
+<<<<<<< HEAD
 # Common Parameter
 KERNEL_VERSION=$(uname -r)
 DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1" "$2" "$3}') 
@@ -8,6 +9,45 @@ CPU_MODELNAME=$(cat /proc/cpuinfo | grep "model name")
 MEM_CAPA=$(cat /proc/meminfo | grep "MemTotal" | awk -F: '{ print $2}' )
 PC_NAME=$(sudo dmidecode -s system-product-name)
 
+=======
+TECHNICAL_REPORT_VERSION="1.0.4"
+
+if [ $# -gt 0 ];then
+ case $1 in
+	"-v" | "version" )
+	 	clear
+  		echo 'CONTEC technical report Ver.' $TECHNICAL_REPORT_VERSION
+  		exit 0;;
+ esac
+fi
+
+
+# Common Parameter
+KERNEL_VERSION=$(uname -r)
+
+DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1 }')
+if [ $DISTRIBUTION_TYPE == "Red" ];then
+   DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8}') ;
+elif [ $DISTRIBUTION_TYPE == "Ubuntu" ];then
+   DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1" "$2" "$3}');
+else
+   DISTRIBUTION_TYPE=$(cat /etc/issue | awk 'NR == 1{ print $1" "$2" "$3}');
+fi
+ 
+CPU_TYPE=$(uname -p)
+CPU_MODELNAME=$(cat /proc/cpuinfo | grep "model name" | awk -F: '{print $2}' )
+MEM_CAPA=$(cat /proc/meminfo | grep "MemTotal" | awk -F: '{ print $2}' )
+PC_NAME=$(sudo dmidecode -s system-product-name)
+
+if [ "$CPU_MODELNAME" = "" ];then
+	CPU_MODELNAME=$(cat /proc/cpuinfo | grep "Processor" | awk -F: '{print $2}' )
+fi
+
+if [ "$PC_NAME" = "" ];then
+	PC_NAME=$(cat /proc/cpuinfo | grep "Hardware" | awk -F: '{print $2}' )
+fi
+
+>>>>>>> cps-drivers/master
 # API-CAP(W32) Parameter
 #APICAP_VERSION=$(sudo find / -name readmee.txt -exec cat {} \; | grep "CPU-CAxx(FIT)GY Library")
 
@@ -16,7 +56,11 @@ echo '*************** Machine Data ***************** '
 echo ' Distribution   :' $DISTRIBUTION_TYPE
 echo ' kernel version :' $KERNEL_VERSION
 echo ' cpu type       :' $CPU_TYPE
+<<<<<<< HEAD
 echo ' cpu' $CPU_MODELNAME
+=======
+echo ' cpu            :' $CPU_MODELNAME
+>>>>>>> cps-drivers/master
 echo ' Memory         :' $MEM_CAPA
 echo ' PC name        :' $PC_NAME
 echo '********************************************** '
@@ -28,7 +72,11 @@ echo "*************** Machine Data ***************** " > report.txt
 echo " Distribution   : $DISTRIBUTION_TYPE " >> report.txt
 echo " kernel version : $KERNEL_VERSION " >> report.txt
 echo " cpu type       : $CPU_TYPE " >> report.txt
+<<<<<<< HEAD
 echo " cpu $CPU_MODELNAME " >> report.txt
+=======
+echo " cpu            : $CPU_MODELNAME " >> report.txt
+>>>>>>> cps-drivers/master
 echo " Memory         : $MEM_CAPA " >> report.txt
 echo " PC name        : $PC_NAME " >> report.txt
 echo "********************************************** " >> report.txt
