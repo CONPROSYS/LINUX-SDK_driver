@@ -23,6 +23,13 @@ before_install:
   - git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
   - export KERNELDIR=$PWD/build
 
+  # export conprosys-sdk
+  - export CPS_SDK_ROOTDIR=$PWD
+  - export CPS_SDK_TARGET_NAME=CPS-MCS341-DSX.novlan
+  - export CPS_SDK_PRODUCT_TYPE=CPS-MCS341-DSX
+  - export CPS_SDK_LAN_TYPE=novlan
+  - export CPS_SDK_INSTALL_FULL_DIR=$CPS_SDK_ROOT_DIR/target/CPS-MCS341-DSX.novlan
+
 before_script:
   - cd $KERNELDIR
   - ls /usr/bin/arm* 
