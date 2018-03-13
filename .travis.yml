@@ -42,7 +42,7 @@ before_script:
   
 script:
   - make
-  - make release_copy
+  # - make release_copy
   - sudo make modules_install
 
 after_script:
