@@ -28,6 +28,7 @@ typedef struct __cpsaio_inout_data{
 	unsigned int Resolution;
 	unsigned int Channel;
 	unsigned int Range;
+	unsigned int RepeatTimes; // Ver 1.1.0
 	CPSAIO_BUFFER_DATA softbuf;
 }CPSAIO_INOUT_DATA, *PCPSAIO_INOUT_DATA;
 
@@ -107,13 +108,6 @@ struct cpsaio_direct_command_arg{
 	unsigned int size;	///< size ( 1 , 2 or 4 )
 };
 
-
-/*  Error Code */
-
-#define AIO_ERR_SYS_MEMORY										20000
-#define AIO_ERR_SYS_NOT_SUPPORTED					20001
-#define AIO_ERR_SYS_BOARD_EXECUTING				20002
-#define AIO_ERR_SYS_USING_OTHER_PROCESS	20003
 
 /* Ability Code */
 #define CPS_AIO_ABILITY_ECU	0x0001
@@ -207,6 +201,8 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 42, struct cpsaio_ioctl_arg)
 
 #define IOCTL_CPSAIO_GET_DRIVER_VERSION	_IOR(CPSAIO_MAGIC, 43, struct cpsaio_ioctl_string_arg)
+
+#define IOCTL_CPSAIO_GET_SAMPLING_COUNT_AI	_IOR(CPSAIO_MAGIC, 44, struct cpsaio_ioctl_arg)
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_arg)
