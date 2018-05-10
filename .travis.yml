@@ -24,7 +24,8 @@ before_install:
   - export KERNELDIR=$PWD/build
 
   # Download the library master branch
-  - git clone --depth 1 --branch master https://github.com/CONPROSYS/LINUX-SDK_library.git $TRAVIS_BUILD_DIR/../
+  - export LIB_DIR=$TRAVIS_BUILD_DIR/../
+  - git clone --depth 1 --branch master https://github.com/CONPROSYS/LINUX-SDK_library.git $LIB_DIR
   
   # export conprosys-sdk
   - export CPS_SDK_ROOTDIR=$PWD
