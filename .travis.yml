@@ -23,8 +23,8 @@ before_install:
   - git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
   - export KERNELDIR=$PWD/build
 
-  # Download the library release branch
-  - git clone --depth 1 --branch release  https://github.com/CONPROSYS/LINUX-SDK_library.git $TRAVIS_BUILD_DIR/../
+  # Download the library master branch
+  - git clone --depth 1 --branch master https://github.com/CONPROSYS/LINUX-SDK_library.git $TRAVIS_BUILD_DIR/../
   
   # export conprosys-sdk
   - export CPS_SDK_ROOTDIR=$PWD
