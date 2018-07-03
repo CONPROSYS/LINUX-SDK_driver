@@ -23,6 +23,18 @@ before_install:
   - git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
   - export KERNELDIR=$PWD/build
 
+  # Download the library master branch
+  - cd $TRAVIS_BUILD_DIR/../
+  - git clone --depth 1 --branch master https://github.com/CONPROSYS/LINUX-SDK_library.git
+  - cd $TRAVIS_BUILD_DIR
+  
+  # export conprosys-sdk
+  - export CPS_SDK_ROOTDIR=$PWD
+  - export CPS_SDK_TARGET_NAME=CPS-MCS341-DSX.novlan
+  - export CPS_SDK_PRODUCT_TYPE=CPS-MCS341-DSX
+  - export CPS_SDK_LAN_TYPE=novlan
+  - export CPS_SDK_INSTALL_FULL_DIR=$CPS_SDK_ROOT_DIR/target/CPS-MCS341-DSX.novlan
+
 before_script:
   - cd $KERNELDIR
   - ls /usr/bin/arm* 
@@ -34,12 +46,12 @@ before_script:
   - cd $TRAVIS_BUILD_DIR/
   
 script:
-  - make
-  - make release_copy
+  - sudo make
+  # - make release_copy
   - sudo make modules_install
 
 after_script:
-  - sudo $TRAVIS_BUILD_DIR/technical-report
-  - cd $TRAVIS_BUILD_DIR/driver/release/
-  - ./driver_version_check
+  - sudo $TRAVIS_BUILD_DIR/cps-drivers/technical-report
+  # - cd $TRAVIS_BUILD_DIR/driver/release/
+  # - ./driver_version_check
 

@@ -22,6 +22,7 @@
 #include <linux/device.h>
 
 #include <linux/slab.h>
+#include <linux/kthread.h> // Version.1.1.0
 
 #ifdef CONFIG_CONPROSYS_SDK
  #include "../include/cps_common_io.h"
@@ -40,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.0.11"
+#define DRV_VERSION	"1.1.0"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -60,6 +61,8 @@ MODULE_VERSION(DRV_VERSION);
 typedef struct __cpsaio_driver_file{
 	spinlock_t		lock; 				///< lock
 	unsigned int ref;						///< reference count 
+
+	struct task_struct *t_kthread; ///< kthread Ver.1.1.0
 
 	unsigned int node;					///< Device Node
 	unsigned long localAddr; 			///< local Address
@@ -203,6 +206,27 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 };
 
 #include "cpsaio_devdata.h"
+
+/**
+  @~English
+	@brief _cpsaio_ai_sampling_thread.
+	@param context_dev :
+	@return 0
+	@~Japanese
+	@brief Analog Inputのサンプリングスレッド (内部関数)。
+	@param context_dev :
+	@return 0
+**/
+static int _cpsaio_ai_sampling_thread(void *context_dev)
+{
+	PCPSAIO_DRV_FILE dev;
+
+	while(!kthread_should_stop()){
+		schedule();
+	}
+
+	return 0;
+}
 
 /**
   @~English
@@ -1078,10 +1102,27 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					break;
 
 		case IOCTL_CPSAIO_START_AI:
+			/*
+					dev->t_kthread = kthread_run(_cpsaio_ai_sampling_thread,
+								NULL,
+								"cpsaio kthread"
+								);
+
+					if(IS_ERR(dev->t_kthread) ){
+						dev->t_kthread = NULL;
+						return -EIO;
+					}
+			*/
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
+
 					break;
 		case IOCTL_CPSAIO_STOP_AI:
 					CPSAIO_COMMAND_AI_STOP( (unsigned long)dev->baseAddr );
+
+					//if( !dev->t_kthread ){
+					//	kthread_stop(dev->t_kthread);
+					//	dev->t_kthread = NULL;
+					//}
 					break;
 
 		case IOCTL_CPSAIO_SETCHANNEL_AI:
@@ -1175,6 +1216,22 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_AI_GET_CALIBRATION( (unsigned long)dev->baseAddr, &valdw );
 					ioc.val = valdw;
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					break;
+		case IOCTL_CPSAIO_GET_SAMPLING_COUNT_AI :
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					CPSAIO_COMMAND_AI_FIFO_COUNTER( (unsigned long)dev->baseAddr, &valw );
+					ioc.val = (unsigned long)valw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
@@ -1833,8 +1890,8 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 			}while( !(wStatus & CPU_AIO_MEMSTATUS_DRE) );
 
 			cpsaio_read_ai_data((unsigned long)dev->baseAddr , &valw );
-			CPSAIO_COMMAND_AI_FIFO_COUNTER( (unsigned long)dev->baseAddr, &wStatus );
-			DEBUG_CPSAIO_READFIFO(KERN_INFO"%d:[%x] fifo<%x> \n", cnt/2, valw, wStatus );
+			//CPSAIO_COMMAND_AI_FIFO_COUNTER( (unsigned long)dev->baseAddr, &wStatus );
+			//DEBUG_CPSAIO_READFIFO(KERN_INFO"%d:[%x] fifo<%x> \n", cnt/2, valw, wStatus );
 			//short to char buffer copy  
 			for( cnt2 = 0;cnt2 < 2; cnt2 ++ ){
 				valb = (valw & (0xFF << ( 8 * cnt2 ) ) ) >> ( 8 * cnt2 );
@@ -1998,6 +2055,8 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	// spin_lock initialize
 	spin_lock_init( &dev->lock );
 
+	dev->t_kthread = NULL;
+
 	dev->ref = 1;
 	notFirstOpenFlg[nodeNo]++;		// Ver.1.0.8 segmentation fault暫定対策フラグインクリメント
 
@@ -2042,6 +2101,11 @@ static int cpsaio_close(struct inode * inode, struct file *filp ){
 		if( dev->ref > 0 ) dev->ref--;
 
 		if( dev->ref == 0 ){
+
+//			if( !dev->t_kthread ){
+//				kthread_stop(dev->t_kthread);
+//				dev->t_kthread = NULL;
+//			}
 
 			free_irq(AM335X_IRQ_NMI, dev);
 

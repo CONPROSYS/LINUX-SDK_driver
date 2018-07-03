@@ -15,25 +15,25 @@ MAKE=make --no-print-directory
 all:	
 	echo $(subdirs)
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE)) ;\
+	(cd $$subdir && $(MAKE)) || exit 1 ;\
 	done
 
 modules_install:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) modules_install ) ;\
+	(cd $$subdir && $(MAKE) modules_install )|| exit 1;\
 	done
 
 release_copy:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) release_copy ) ;\
+	(cd $$subdir && $(MAKE) release_copy ) || exit 1 ;\
 	done
 
 sdk_install:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) sdk_install ) ;\
+	(cd $$subdir && $(MAKE) sdk_install ) || exit 1 ;\
 	done
 
 clean:
 	@for subdir in $(subdirsall) ; do \
-	(cd $$subdir && $(MAKE) clean ) ;\
+	(cd $$subdir && $(MAKE) clean ) || exit 1 ;\
 	done

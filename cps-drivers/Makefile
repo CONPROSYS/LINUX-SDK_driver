@@ -3,17 +3,17 @@ MAKE=make --no-print-directory
 
 all:	
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE)) ;\
+	(cd $$subdir && $(MAKE)) || exit 1;\
 	done
 
 modules_install:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) modules_install ) ;\
+	(cd $$subdir && $(MAKE) modules_install ) || exit 1;\
 	done
 
 release_copy:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) release_copy ) ;\
+	(cd $$subdir && $(MAKE) release_copy ) || exit 1;\
 	done
 
 sdk_install:
@@ -21,5 +21,5 @@ sdk_install:
 
 clean:
 	@for subdir in $(subdirs) ; do \
-	(cd $$subdir && $(MAKE) clean ) ;\
+	(cd $$subdir && $(MAKE) clean ) || exit 1;\
 	done
