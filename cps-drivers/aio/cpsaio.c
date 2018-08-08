@@ -679,6 +679,60 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 /// @}
 
 /**
+	@~English
+	@brief This function get analog input status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, unsigned long *ulStatus )
+{
+	unsigned short wAnalogStatus = 0, wAnalogFlag = 0;
+	unsigned long ulTmpStatus = 0;
+
+	switch( inout ){
+	case CPS_AIO_INOUT_AI :
+		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
+
+		// AIS_BUSY
+		if( wAnalogStatus & 0x01 )	ulTmpStatus |= 0x00000001;
+		else ulTmpStatus &= ~(0x00000001);
+
+		// AIS_START_TRG
+		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000002;
+		else ulTmpStatus &= ~(0x00000002);
+
+		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+		
+		// AIS_DATA_NUM
+		if( wAnalogFlag & 0x10 )	ulTmpStatus |= 0x00000010;
+		else ulTmpStatus &= ~(0x00000010);
+		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+		// AIS_OFERR (Overflow)
+		if( wAnalogFlag & 0x10 )		
+
+		break;
+	case CPS_AIO_INOUT_AO :
+		cpsaio_read_ao_status( BaseAddr, &wAnalogStatus );
+
+		// AIS_BUSY
+		if( wAnalogStatus & 0x01 )	ulTmpStatus |= 0x00000001;
+		else ulTmpStatus &= ~(0x00000001);
+
+		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000001;
+		else ulTmpStatus &= ~(0x00000001);
+
+		break;
+	}	
+
+}
+
+/**
 	@brief cpsaio_read_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
