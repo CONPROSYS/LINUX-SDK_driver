@@ -697,25 +697,39 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 
 	switch( inout ){
 	case CPS_AIO_INOUT_AI :
+		///< アナログ入力ステータスを取得
 		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 		// AIS_BUSY
-		if( wAnalogStatus & 0x01 )	ulTmpStatus |= 0x00000001;
-		else ulTmpStatus &= ~(0x00000001);
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus |= CPS_AIO_AIS_BUSY;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
 
 		// AIS_START_TRG
-		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000002;
-		else ulTmpStatus &= ~(0x00000002);
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY )	ulTmpStatus |= CPS_AIO_AIS_START_TRG;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_START_TRG);
 
+		// AIS_DATA_NUM
+		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
+		///< 本来本ステータスはイベント機能と連動している
+		///< ジェイテクト様向けにはイベント機能を未実装としているので、本ステータスも未実装とする
+		
+		///< メモリフラグを取得
+		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+
+		// AIS_OFERR (Overflow)
+		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW )	ulTmpStatus |= CPS_AIO_AIS_OFERR;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
+
+		///< アナログ入力フラグを取得
 		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
 		
-		// AIS_DATA_NUM
-		if( wAnalogFlag & 0x10 )	ulTmpStatus |= 0x00000010;
-		else ulTmpStatus &= ~(0x00000010);
-		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
-		// AIS_OFERR (Overflow)
-		if( wAnalogFlag & 0x10 )		
+		///< AIS_SCERR
+		if( wAnalogFlag & CPS_AIO_AI_FLAG_LCLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
 
+		///< Tempステータスを引数のステータスに格納
+		*ulStatus = ulTmpStatus;
+		
 		break;
 	case CPS_AIO_INOUT_AO :
 		cpsaio_read_ao_status( BaseAddr, &wAnalogStatus );
