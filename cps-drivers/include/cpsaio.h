@@ -133,7 +133,7 @@ struct cpsaio_direct_command_arg{
 #define CPS_AIO_AI_STATUS_AI_ENABLE						0x0080
 #define CPS_AIO_AI_STATUS_CALIBRATION_BUSY				0x0100
 
-#define CPS_AIO_AI_STATUS_MOTION_END					0x00008000
+//#define CPS_AIO_AI_STATUS_MOTION_END					0x00008000
 
 ///< PCへ渡す用ステータスマクロ
 ///< 本来AioGetAiStatusは32bitだが仮想アドレスマップが16bitしか用意されていない
@@ -145,7 +145,16 @@ struct cpsaio_direct_command_arg{
 #define CPS_AIO_AIS_SCERR		0x0200
 
 ///< アナログ入力フラグマクロ
-#define	CPS_AIO_AI_FLAG_LCLOCKERROR	0x0002
+#define CPS_AIO_AI_FLAG_SCAN_END	0x0001
+#define CPS_AIO_AI_FLAG_DATANUM_END	0x0002
+#define	CPS_AIO_AI_FLAG_CLOCKERROR	0x0100
+#define	CPS_AIO_AI_FLAG_MOTION_END	0x8000
+
+///< アナログ出力フラグマクロ
+#define CPS_AIO_AO_FLAG_DATANUM_END	0x0002
+#define	CPS_AIO_AO_FLAG_CLOCKERROR	0x0100
+#define	CPS_AIO_AO_FLAG_MOTION_END	0x8000
+
 
 ///< メモリフラグマクロ
 #define	CPS_AIO_MEM_FLAG_OVERFLOW	0x0002

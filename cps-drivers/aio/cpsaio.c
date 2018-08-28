@@ -701,8 +701,8 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 		// AIS_BUSY
-		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus |= CPS_AIO_AIS_BUSY;
-		else ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
+		else ulTmpStatus |= CPS_AIO_AIS_BUSY;
 
 		// AIS_START_TRG
 		if( wAnalogStatus & CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY )	ulTmpStatus |= CPS_AIO_AIS_START_TRG;
@@ -713,6 +713,8 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		///< 本来本ステータスはイベント機能と連動している
 		///< ジェイテクト様向けにはイベント機能を未実装としているので、本ステータスも未実装とする
 		
+		wAnalogFlag = 0;
+
 		///< メモリフラグを取得
 		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
 
@@ -720,12 +722,26 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW )	ulTmpStatus |= CPS_AIO_AIS_OFERR;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
 
+		///< 変化したメモリフラグをライトクリア
+		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG(BaseAddr , wAnalogFlag);
+
+		wAnalogFlag = 0;
+
 		///< アナログ入力フラグを取得
 		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+
+		///< CPS_AIO_AIS_DATA_NUM
+		if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
 		
+
 		///< AIS_SCERR
-		if( wAnalogFlag & CPS_AIO_AI_FLAG_LCLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
+		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
+
+		///< 変化したアナログ入力フラグをライトクリア
+		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG(BaseAddr , wAnalogFlag);
+
 
 		///< Tempステータスを引数のステータスに格納
 		*ulStatus = ulTmpStatus;
@@ -1160,7 +1176,8 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
+					cpsaio_get_status(CPS_AIO_INOUT_AI, (unsigned long)dev->baseAddr , &valw );
+					//cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1182,6 +1199,20 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					}
 			*/
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
+
+					{
+						int count = 0;
+						do{
+							contec_cps_micro_sleep( 1 );
+							cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
+							if( count >= 1000 ) return -ETIMEDOUT;
+							count ++;
+						}while( valw & CPS_AIO_AI_STATUS_START_DISABLE );
+						
+					}
+
+					// SoftTrigger ON
+					CPSAIO_COMMAND_ECU_OUTPULSE0( (unsigned long)dev->baseAddr);
 
 					break;
 		case IOCTL_CPSAIO_STOP_AI:
