@@ -723,7 +723,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		else ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
 
 		///< 変化したメモリフラグをライトクリア
-		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG(BaseAddr , wAnalogFlag);
+		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG(BaseAddr , &wAnalogFlag);
 
 		wAnalogFlag = 0;
 
@@ -740,7 +740,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
 
 		///< 変化したアナログ入力フラグをライトクリア
-		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG(BaseAddr , wAnalogFlag);
+		if( wAnalogFlag )	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG(BaseAddr , &wAnalogFlag);
 
 
 		///< Tempステータスを引数のステータスに格納
@@ -760,6 +760,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		break;
 	}	
 
+		return 0;
 }
 
 /**
@@ -1176,9 +1177,9 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsaio_get_status(CPS_AIO_INOUT_AI, (unsigned long)dev->baseAddr , &valw );
+					cpsaio_get_status(CPS_AIO_INOUT_AI, (unsigned long)dev->baseAddr , &valdw );
 					//cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
-					ioc.val = (unsigned long) valw;
+					ioc.val = (unsigned long) valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
@@ -2005,7 +2006,7 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 	}
 
 out:
-	valw = 0xFFFF;
+	valw = ( 0xFFFF | |);
 	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
 	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
 	return retval;
