@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.1.0"
+#define DRV_VERSION	"1.1.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -113,6 +113,12 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_CPSAIO_START_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSAIO_START_CHECK(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -377,7 +383,7 @@ static long cpsaio_read_interrupt_status( unsigned long BaseAddr, unsigned short
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_ECU_INTERRUPT_CHECK_CPS_AIO );
 	cps_common_inpw( ulAddr , wIntStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wIntStatus );
 	return 0;
 }
 
@@ -1206,7 +1212,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						do{
 							contec_cps_micro_sleep( 1 );
 							cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
-							if( count >= 1000 ) return -ETIMEDOUT;
+							if( count >= 1000 ){
+								DEBUG_CPSAIO_START_CHECK(KERN_ERR"Timeout %d status \n", count, valw );
+								return -ETIMEDOUT;
+							}
 							count ++;
 						}while( valw & CPS_AIO_AI_STATUS_START_DISABLE );
 						
@@ -2006,7 +2015,7 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 	}
 
 out:
-	valw = ( 0xFFFF | |);
+	valw = ( 0xFFFF );
 	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
 	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
 	return retval;
