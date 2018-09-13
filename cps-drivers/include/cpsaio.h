@@ -228,6 +228,10 @@ struct cpsaio_direct_command_arg{
 
 #define IOCTL_CPSAIO_GET_SAMPLING_COUNT_AI	_IOR(CPSAIO_MAGIC, 44, struct cpsaio_ioctl_arg)
 
+#define IOCTL_CPSAIO_RESET_STATUS	_IOW(CPSAIO_MAGIC, 45, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_RESET_MEMORY	_IOW(CPSAIO_MAGIC, 46, struct cpsaio_ioctl_arg)
+
+
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT	_IOW(CPSAIO_MAGIC, 66, struct cpsaio_direct_command_arg)
