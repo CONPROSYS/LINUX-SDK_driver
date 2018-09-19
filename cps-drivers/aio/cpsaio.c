@@ -707,11 +707,11 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 		// AIS_BUSY
-		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
-		else ulTmpStatus |= CPS_AIO_AIS_BUSY;
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_ADC_BUSY )	ulTmpStatus |= CPS_AIO_AIS_BUSY;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
 
 		// AIS_START_TRG
-		if( wAnalogStatus & CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY )	ulTmpStatus |= CPS_AIO_AIS_START_TRG;
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus |= CPS_AIO_AIS_START_TRG;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_START_TRG);
 
 		// AIS_DATA_NUM
@@ -734,8 +734,8 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
 
 		///< CPS_AIO_AIS_DATA_NUM
-		if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
-		else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
+		//if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
+		//else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
 		
 		///< AIS_SCERR
 		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
