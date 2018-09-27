@@ -28,9 +28,32 @@ typedef struct __cpsaio_inout_data{
 	unsigned int Resolution;
 	unsigned int Channel;
 	unsigned int Range;
-	unsigned int RepeatTimes; // Ver 1.1.0
-	CPSAIO_BUFFER_DATA softbuf;
 }CPSAIO_INOUT_DATA, *PCPSAIO_INOUT_DATA;
+/**
+	@struct __cpsaio_user_data
+	@~English
+	@brief structure union paramter
+	@~Japanese
+	@brief 共有パラメータ構造体
+**/
+typedef struct __cpsaio_user_data{
+	unsigned long Clock;
+	unsigned long RepeatTimes; // Ver 1.1.0
+}CPSAIO_USER_DATA, *PCPSAIO_USER_DATA;
+
+/**
+	@struct __cpsaio_current_data
+	@~English
+	@brief structure union paramter
+	@~Japanese
+	@brief 共有パラメータ構造体
+**/
+typedef struct __cpsaio_current_data{
+	CPSAIO_INOUT_DATA fixed;
+	CPSAIO_USER_DATA user;
+}CPSAIO_CURRENT_DATA, *PCPSAIO_CURRENT_DATA;
+
+
 
 /**
 	@struct __cpsaio_device_data
@@ -43,8 +66,9 @@ typedef struct __cpsaio_device_data{
 	char Name[32];	///< デバイス名
 	unsigned int ProductNumber;///< 製品番号
 	unsigned int Ability;///< 能力 ( AI, AO, ECU )
-	CPSAIO_INOUT_DATA ai;///< AI Data
-	CPSAIO_INOUT_DATA ao;///< AO Data
+	CPSAIO_CURRENT_DATA ai;///< AI Data
+	CPSAIO_CURRENT_DATA ao;///< AO Data
+
 /*	
 	unsigned int aiResolution;
 	unsigned int aiChannel;
@@ -63,7 +87,8 @@ typedef struct __cpsaio_device_data{
 	@brief I/O コントロール 構造体
 **/
 struct cpsaio_ioctl_arg{
-	unsigned char inout;	///< in or out
+	unsigned char inout;	///< analog input or output
+	unsigned char isDerection; ///< Function Set or Get < Reserved >
 	unsigned short ch;	///< channel
 	unsigned long val;	///< value
 };
@@ -125,6 +150,9 @@ struct cpsaio_direct_command_arg{
 /* INOUT */
 #define CPS_AIO_INOUT_AI	0x01
 #define CPS_AIO_INOUT_AO	0x02
+/* DERECTION (Function) */
+#define CPS_AIO_DERECTION_SET	0x01
+#define CPS_AIO_DERECTION_GET	0x02
 
 /* CPS-AIO AI STATUS */
 #define CPS_AIO_AI_STATUS_ADC_BUSY						0x0001
@@ -210,7 +238,7 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_SET_CALIBRATION_AO	_IOW(CPSAIO_MAGIC, 28, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GET_INTERRUPT_FLAG_AI _IOR(CPSAIO_MAGIC, 29, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GET_SAMPNUM_AI	_IOW(CPSAIO_MAGIC, 30, struct cpsaio_ioctl_arg)
-#define IOCTL_CPSAIO_GET_CLOCK_AI	_IOW(CPSAIO_MAGIC, 31, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_GET_CLOCK	_IOW(CPSAIO_MAGIC, 31, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 32, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_WRITE_EEPROM_AI _IOW(CPSAIO_MAGIC, 33, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_READ_EEPROM_AI _IOR(CPSAIO_MAGIC, 34, struct cpsaio_ioctl_arg)

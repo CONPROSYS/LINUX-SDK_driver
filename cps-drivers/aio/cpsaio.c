@@ -85,7 +85,7 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_COMMAND(fmt...)	do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_CPSAIO_OPEN(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_OPEN(fmt...)	do { } while (0)
@@ -103,7 +103,7 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_READFIFO(fmt...)	do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_CPSAIO_IOCTL(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_IOCTL(fmt...)	do { } while (0)
@@ -149,12 +149,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AI_1608LI ,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AI | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 16,
-			.Channel = 8,
+			.fixed ={
+				.Resolution = 16,
+				.Channel = 8,
+			},
 		},
 		.ao = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed = {
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 	},
 	{
@@ -162,12 +166,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AO_1604LI,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AO | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 		.ao = {
-			.Resolution = 16,
-			.Channel = 4,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 4,
+			},
 		},
 	},
 	{
@@ -175,12 +183,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AI_1608ALI ,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AI | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 16,
-			.Channel = 8,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 8,
+			},
 		},
 		.ao = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 	},
 	{
@@ -188,12 +200,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AO_1604VLI,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AO | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 		.ao = {
-			.Resolution = 16,
-			.Channel = 4,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 4,
+			},
 		},
 	},
 	{
@@ -201,12 +217,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = -1,
 		.Ability = -1,
 		.ai = {
-			.Resolution = -1,
-			.Channel = -1,
+			.fixed ={			
+				.Resolution = -1,
+				.Channel = -1,
+			},
 		},
 		.ao = {
-			.Resolution = -1,
-			.Channel = -1,
+			.fixed ={
+				.Resolution = -1,
+				.Channel = -1,
+			},
 		},
 	},
 };
@@ -758,7 +778,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		break;
 	}	
 
-		return 0;
+	return 0;
 }
 
 /**
@@ -800,7 +820,7 @@ unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memf
 	@param wStatus : ステータス
 	@return 成功 : 0
 **/ 
-unsigned long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr )
+long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr )
 {
 
 	switch( inout ){
@@ -811,6 +831,8 @@ unsigned long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr )
 	case CPS_AIO_INOUT_AO :
 		_cpsaio_clear_status( BaseAddr , 0xFFFF, 0 , 0xFFFF );
 		break;
+	default:
+		return -EFAULT;		
 	}	
 
 		return 0;
@@ -1321,7 +1343,9 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
+					dev->data.ai.user.Clock = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
+
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
@@ -1487,6 +1511,8 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AO_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
+
+					dev->data.ao.user.Clock = valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
@@ -1635,17 +1661,17 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 /* Analog Common */
 		case IOCTL_CPSAIO_INIT:
 					CPSAIO_COMMAND_ECU_INIT( (unsigned long)dev->baseAddr );
-					if( dev->data.ai.Channel > 0 )
+					if( dev->data.ai.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AI_INIT( (unsigned long)dev->baseAddr );
-					if( dev->data.ao.Channel > 0 )
+					if( dev->data.ao.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AO_INIT( (unsigned long)dev->baseAddr );
 					CPSAIO_COMMAND_MEM_INIT( (unsigned long)dev->baseAddr );
 					break;
 
 		case IOCTL_CPSAIO_EXIT:
-					if( dev->data.ai.Channel > 0 )
+					if( dev->data.ai.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AI_STOP( (unsigned long)dev->baseAddr );
-					if( dev->data.ao.Channel > 0 )
+					if( dev->data.ao.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AO_STOP( (unsigned long)dev->baseAddr );
 					break;
 
@@ -1659,11 +1685,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :
-						ioc.val = dev->data.ai.Resolution	;
+						ioc.val = dev->data.ai.fixed.Resolution	;
 						break;
 					case CPS_AIO_INOUT_AO:
-						ioc.val = dev->data.ao.Resolution	;
+						ioc.val = dev->data.ao.fixed.Resolution	;
 						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
 					}
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1682,11 +1711,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :				
-						ioc.val = dev->data.ai.Channel	;
+						ioc.val = dev->data.ai.fixed.Channel;
 						break;
 					case CPS_AIO_INOUT_AO:
-						ioc.val = dev->data.ao.Channel	;
+						ioc.val = dev->data.ao.fixed.Channel;
 						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
 					}
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1722,6 +1754,34 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
+		case IOCTL_CPSAIO_GET_CLOCK:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :		
+						ioc.val = dev->data.ai.user.Clock;
+						break;
+					case CPS_AIO_INOUT_AO:
+						ioc.val = dev->data.ao.user.Clock;
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK COPY FROM ioc to arg ERROR.");						
+						return -EFAULT;
+					}
+					break;							
 
 /////// MEMORY I/O COMMAND ////////
 
@@ -1867,7 +1927,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					case CPS_DEVICE_AI_1608LI:
 					case CPS_DEVICE_AI_1608ALI: num = 1;break;
 					case CPS_DEVICE_AO_1604LI:
-					case CPS_DEVICE_AO_1604VLI : num = dev->data.ao.Channel;break;
+					case CPS_DEVICE_AO_1604VLI : num = dev->data.ao.fixed.Channel;break;
 					}
 
 					spin_unlock_irqrestore(&dev->lock, flags);
