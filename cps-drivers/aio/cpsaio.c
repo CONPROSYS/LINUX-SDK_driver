@@ -51,6 +51,9 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSAIO_DRIVER_NAME "cpsaio"
 
+#define CPSAIO_CLEARTYPE_RESETSTATUS 1
+#define CPSAIO_CLEARTYPE_RESETMEMORY 2
+
 /**
 	@struct cps_aio_data
 	@~English
@@ -103,7 +106,7 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_READFIFO(fmt...)	do { } while (0)
 #endif
 
-#if 1
+#if 0
 #define DEBUG_CPSAIO_IOCTL(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_IOCTL(fmt...)	do { } while (0)
@@ -727,13 +730,25 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 		// AIS_BUSY
-		if( wAnalogStatus & CPS_AIO_AI_STATUS_ADC_BUSY )	ulTmpStatus |= CPS_AIO_AIS_BUSY;
-		else ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE ){
+			ulTmpStatus |= CPS_AIO_AIS_BUSY;
+		}
+		else{
+			ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
+		}
 
 		// AIS_START_TRG
-		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE )	ulTmpStatus |= CPS_AIO_AIS_START_TRG;
-		else ulTmpStatus &= ~(CPS_AIO_AIS_START_TRG);
-
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE){ 
+			if( wAnalogStatus & CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY )
+			{
+				ulTmpStatus &= ~CPS_AIO_AIS_START_TRG;
+			}
+			else{
+				ulTmpStatus |= CPS_AIO_AIS_START_TRG;
+			}
+		}else{
+			ulTmpStatus &= ~CPS_AIO_AIS_START_TRG;
+		}		
 		// AIS_DATA_NUM
 		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
 		///< 本来本ステータスはイベント機能と連動している
@@ -743,6 +758,8 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 
 		///< メモリフラグを取得
 		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+
+		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_MEM_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
 
 		// AIS_OFERR (Overflow)
 		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW )	ulTmpStatus |= CPS_AIO_AIS_OFERR;
@@ -756,7 +773,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		///< CPS_AIO_AIS_DATA_NUM
 		//if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
 		//else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
-		
+		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_AI_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
 		///< AIS_SCERR
 		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
@@ -820,12 +837,22 @@ unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memf
 	@param wStatus : ステータス
 	@return 成功 : 0
 **/ 
-long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr )
+long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned char FuncType  )
 {
+	unsigned short ai_flag = 0, ao_flag = 0, mem_flag = 0;
 
 	switch( inout ){
 	case CPS_AIO_INOUT_AI :
-		_cpsaio_clear_status( BaseAddr , 0xFFFF, 0xFFFF , 0 );
+		switch( FuncType ){
+			case CPSAIO_CLEARTYPE_RESETSTATUS:
+				ai_flag = 0xFFFF;
+				mem_flag = 0xFFFD;
+				break;
+			case CPSAIO_CLEARTYPE_RESETMEMORY:
+				mem_flag = 0xFFFF;
+				break;			
+		} 
+		_cpsaio_clear_status( BaseAddr , mem_flag, ai_flag , ao_flag );
 		break;
 
 	case CPS_AIO_INOUT_AO :
@@ -1335,10 +1362,12 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 
 		case IOCTL_CPSAIO_SET_CLOCK_AI:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_SET_CLOCK NULL VERIFY READ.");						
 						return -EFAULT;
 					}
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_SET_CLOCK COPY FROM arg to ioc ERROR.");	
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
@@ -1347,6 +1376,7 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
 
 					spin_unlock_irqrestore(&dev->lock, flags);
+					DEBUG_CPSAIO_IOCTL("driver : Set sampling clock %x \n", valdw);
 
 					break;
 		case IOCTL_CPSAIO_SET_SAMPNUM_AI:
@@ -1737,7 +1767,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsaio_reset_status( ioc.inout, dev->baseAddr );
+					cpsaio_reset_status( ioc.inout, dev->baseAddr, CPSAIO_CLEARTYPE_RESETSTATUS );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
@@ -1750,7 +1780,21 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					//cpsaio_reset_memory( dev->baseAddr );
+
+					cpsaio_reset_status( ioc.inout, dev->baseAddr, CPSAIO_CLEARTYPE_RESETMEMORY );
+
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :				
+						CPSAIO_COMMAND_AI_CLR( dev->baseAddr );
+						break;
+					case CPS_AIO_INOUT_AO:
+						CPSAIO_COMMAND_AO_CLR( dev->baseAddr );
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
+					}
+
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
