@@ -1690,12 +1690,38 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 /* Analog Common */
 		case IOCTL_CPSAIO_INIT:
+					// At First, InitialCommand
 					CPSAIO_COMMAND_ECU_INIT( (unsigned long)dev->baseAddr );
 					if( dev->data.ai.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AI_INIT( (unsigned long)dev->baseAddr );
 					if( dev->data.ao.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AO_INIT( (unsigned long)dev->baseAddr );
 					CPSAIO_COMMAND_MEM_INIT( (unsigned long)dev->baseAddr );
+
+					// At second, Initialize Set Parameter
+					spin_lock_irqsave(&dev->lock, flags);					
+					if( dev->data.ai.fixed.Channel > 0){
+						valw = 1; // multi
+						CPSAIO_COMMAND_AI_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
+						valw = 1; // channel
+						CPSAIO_COMMAND_AI_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
+						valdw = 0x4E1F; // 500usec
+						CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr , &valdw );
+						valdw = 8000;
+						CPSAIO_COMMAND_AI_SETSAMPNUM((unsigned long)dev->baseAddr , &valdw );
+					}
+					if( dev->data.ao.fixed.Channel > 0){
+						valw = 1; // multi
+						CPSAIO_COMMAND_AO_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
+						valw = 1; // channel
+						CPSAIO_COMMAND_AO_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
+						valdw = 0x4E1F; // 500usec
+						CPSAIO_COMMAND_AO_SETCLOCK( (unsigned long)dev->baseAddr , &valdw );
+						valdw = 4000;
+						CPSAIO_COMMAND_AO_SETSAMPNUM((unsigned long)dev->baseAddr , &valdw );
+					}					
+					spin_unlock_irqrestore(&dev->lock, flags);
+
 					break;
 
 		case IOCTL_CPSAIO_EXIT:
