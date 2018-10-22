@@ -26,7 +26,7 @@ typedef struct __cpsaio_buffer{
 **/
 typedef struct __cpsaio_inout_data{
 	unsigned int Resolution;
-	unsigned int Channel;
+	unsigned int Channel;	//Max Channel 
 	unsigned int Range;
 }CPSAIO_INOUT_DATA, *PCPSAIO_INOUT_DATA;
 /**
@@ -38,7 +38,10 @@ typedef struct __cpsaio_inout_data{
 **/
 typedef struct __cpsaio_user_data{
 	unsigned long Clock;
+	unsigned long SamplingTimes;
 	unsigned long RepeatTimes; // Ver 1.1.0
+	unsigned short Channel;
+	short StopTriggerType;
 }CPSAIO_USER_DATA, *PCPSAIO_USER_DATA;
 
 /**
@@ -154,6 +157,27 @@ struct cpsaio_direct_command_arg{
 #define CPS_AIO_DERECTION_SET	0x01
 #define CPS_AIO_DERECTION_GET	0x02
 
+/* */
+
+/* Event Controller dest signal */
+#define CPS_AIO_ECU_DEST_AI_CLK	4
+#define CPS_AIO_ECU_DEST_AI_START	0
+#define CPS_AIO_ECU_DEST_AI_STOP	2
+#define CPS_AIO_ECU_DEST_AO_CLK	36
+#define CPS_AIO_ECU_DEST_AO_START	32
+#define CPS_AIO_ECU_DEST_AO_STOP	34
+
+/* Event Controller src signal */
+#define CPS_AIO_ECU_SRC_NON_CONNECT	0
+#define CPS_AIO_ECU_SRC_AI_CLK	4
+#define CPS_AIO_ECU_SRC_AI_STOP	17
+#define CPS_AIO_ECU_SRC_AO_CLK	66
+#define CPS_AIO_ECU_SRC_AO_STOP_RING	80
+#define CPS_AIO_ECU_SRC_AO_STOP_FIFO	352
+#define CPS_AIO_ECU_SRC_START	384
+
+#define CPS_AIO_ECU_DESTSRC_SIGNAL(dest, src)	( (src << 16) | dest )
+
 /* CPS-AIO AI STATUS */
 #define CPS_AIO_AI_STATUS_ADC_BUSY						0x0001
 #define CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY	0x0002
@@ -224,7 +248,7 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_STOP_AO	_IO(CPSAIO_MAGIC, 14)
 #define IOCTL_CPSAIO_SETCHANNEL_AO	_IOW(CPSAIO_MAGIC, 15, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SETSAMPNUM_AO	_IOW(CPSAIO_MAGIC, 16, struct cpsaio_ioctl_arg)
-#define IOCTL_CPSAIO_GETCHANNEL_AI	_IOR(CPSAIO_MAGIC, 17, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_GETCHANNEL	_IOWR(CPSAIO_MAGIC, 17, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GETCHANNEL_AO	_IOR(CPSAIO_MAGIC, 18, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GETRESOLUTION	_IOR(CPSAIO_MAGIC, 19, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GETMEMSTATUS	_IOR(CPSAIO_MAGIC, 20, struct cpsaio_ioctl_arg)
@@ -237,8 +261,8 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_SET_CALIBRATION_AI	_IOW(CPSAIO_MAGIC, 27, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SET_CALIBRATION_AO	_IOW(CPSAIO_MAGIC, 28, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GET_INTERRUPT_FLAG_AI _IOR(CPSAIO_MAGIC, 29, struct cpsaio_ioctl_arg)
-#define IOCTL_CPSAIO_GET_SAMPNUM_AI	_IOW(CPSAIO_MAGIC, 30, struct cpsaio_ioctl_arg)
-#define IOCTL_CPSAIO_GET_CLOCK	_IOW(CPSAIO_MAGIC, 31, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_GET_SAMPNUM	_IOWR(CPSAIO_MAGIC, 30, struct cpsaio_ioctl_arg)
+#define IOCTL_CPSAIO_GET_CLOCK	_IOWR(CPSAIO_MAGIC, 31, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_GET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 32, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_WRITE_EEPROM_AI _IOW(CPSAIO_MAGIC, 33, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_READ_EEPROM_AI _IOR(CPSAIO_MAGIC, 34, struct cpsaio_ioctl_arg)
@@ -258,7 +282,7 @@ struct cpsaio_direct_command_arg{
 
 #define IOCTL_CPSAIO_RESET_STATUS	_IOW(CPSAIO_MAGIC, 45, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_RESET_MEMORY	_IOW(CPSAIO_MAGIC, 46, struct cpsaio_ioctl_arg)
-
+#define IOCTL_CPSAIO_STOPTRIGGER_TYPE	_IOWR(CPSAIO_MAGIC, 47, struct cpsaio_ioctl_arg)
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_arg)
