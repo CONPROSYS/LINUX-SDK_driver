@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.4"
+#define DRV_VERSION	"1.0.5"
 
 /*
  * Configuration:
@@ -3731,7 +3731,7 @@ static int contec_mcs341_power_show(struct device *dev, struct device_attribute 
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
-	 @return buf : 0 または　1
+	 @return buf : Failed :-1  Success : more than 0
 	 @detail loraモジュールをON/OFFする
 **/
 static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
@@ -3757,7 +3757,7 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 	switch ( device_ID ){
 		case CPS_DEVICE_COM1QL: valb2=0x0000; valb3=0x0011;break;
 		case CPS_DEVICE_COM1LC: valb2=0x0000; valb3=0x0010;break;
-		default : return 0;
+		default : return -1;
 	}
 
 	switch( buf[0] ){
