@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.4"
+#define DRV_VERSION	"1.0.5"
 
 /*
  * Configuration:
@@ -3749,8 +3749,11 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
 
 	unsigned int addr1 = 0x30;
-	unsigned int addr2 = 0x34;		
-
+	unsigned int addr2 = 0x34;
+	
+	////// Test Code //////
+	return -1; // return 0 // Tested Echo 1 ,result HungUp...
+/*
 	device_ID = contec_mcs341_device_productid_get( devnum );
 
 	//2018.05.11
@@ -3773,7 +3776,7 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 		break;
 	}
 	return strlen(buf);
-
+	*/
 }
 static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 	contec_mcs341_power_show, contec_mcs341_power_store );
@@ -4082,6 +4085,10 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 			err = device_create_file(devp, &dev_attr_dev_power);
 		break;
 	}
+
+	////// Test Code //////
+	err = device_create_file(devp, &dev_attr_dev_power);
+
 	err |= device_create_file(devp,&dev_attr_id);
 	return err;
 }
