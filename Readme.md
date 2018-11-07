@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.3.3.0 (2018/10/14)
+* Version : 1.3.3.1 (2018/11/07)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -49,11 +49,17 @@
 * cps-driver
     CPS-MCS341 Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt)
     * aio (Analog Input/Output)
+        * Version 1.1.0.1
     * dio (Digital Input/Output)
+        * Version 1.0.4
     * com (Serial Communication)
+        * Version 1.0.5
     * cnt (Counter)
+        * Version 0.9.6
     * ssi (Sensor Input)
+        * Version 1.0.11
     * system (Base)
+        * Version 1.1.1
     * spi/dio (Digital Input/Output)
 
 * cps-iolib 
@@ -61,5 +67,9 @@
 
 
 ## Change log
+* Ver 1.3.3.1
+    * cpsaio Ver.1.1.0 -> Ver.1.1.0.1
+        * Fixed Calibration Read , Write, and Clear.(CPS-AO-1604LI, CPS-AO-1604VLI)
 * Ver 1.3.3.0
-    * Add Leakage Current Modules (CPS-MM-LC)
+    * 8250_cpscom Ver.1.0.4 -> Ver.1.0.5
+        * Add Leakage Current Modules (CPS-MM-LC)
