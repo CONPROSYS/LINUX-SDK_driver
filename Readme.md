@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.3.3.1 (2018/11/07)
+* Version : 1.3.3.2 (2018/11/08)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -53,7 +53,7 @@
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
-        * Version 1.0.5
+        * Version 1.0.6
     * cnt (Counter)
         * Version 0.9.6
     * ssi (Sensor Input)
@@ -67,6 +67,9 @@
 
 
 ## Change log
+* Ver 1.3.3.2
+    * 8250_cpscom Ver.1.0.5 -> Ver.1.0.6
+        * Update RX485 settings. (CPS-COM-1PD, CPS-COM-2PD)
 * Ver 1.3.3.1
     * cpsaio Ver.1.1.0 -> Ver.1.1.0.1
         * Fixed Calibration Read , Write, and Clear.(CPS-AO-1604LI, CPS-AO-1604VLI)
