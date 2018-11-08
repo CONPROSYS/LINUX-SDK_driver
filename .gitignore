@@ -33,5 +33,7 @@
 *.su
 
 release/mcs341/*
+!release/mcs341/.gitkeep
 !release/driver_version_check
 release/mc341/*
+!release/mc341/.gitkeep
