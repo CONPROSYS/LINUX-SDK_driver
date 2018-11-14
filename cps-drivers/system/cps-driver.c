@@ -2046,7 +2046,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_extension_value_all_clear);
 **/
 static unsigned char contec_mcs341_device_deviceNum_get( unsigned long baseAddr )
 {
-		return (  (baseAddr & 0x00002F00 ) >> 8 );
+		return (  (baseAddr & 0x00003F00 ) >> 8 );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_deviceNum_get);
 
