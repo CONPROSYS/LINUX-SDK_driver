@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.1
+ * Version 1.1.2
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.1"
+#define DRV_VERSION	"1.1.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -2046,7 +2046,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_extension_value_all_clear);
 **/
 static unsigned char contec_mcs341_device_deviceNum_get( unsigned long baseAddr )
 {
-		return (  (baseAddr & 0x00002F00 ) >> 8 );
+		return (  (baseAddr & 0x00003F00 ) >> 8 );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_deviceNum_get);
 
