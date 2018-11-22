@@ -27,6 +27,8 @@
 #define CPS_DEVICE_DO16RBL		0x17
 //2017.09.01
 #define CPS_DEVICE_COM1QL		0x19
+//2018.03.06
+#define CPS_DEVICE_COM1LC    	0x1A
 
 
 

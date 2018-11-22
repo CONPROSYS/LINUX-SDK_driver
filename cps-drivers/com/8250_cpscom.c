@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.4"
+#define DRV_VERSION	"1.0.6"
 
 /*
  * Configuration:
@@ -77,7 +77,8 @@ static unsigned int skip_txen_test; /* force skip of txen test at init time */
  
  static int lora_interrupt = 0;
  static int lora_power = 0;
- static int lora_deviceID = 0;
+ //2018.05.11	
+ //  static int lora_deviceID = 0;
  static u16 leds_status = 0;
 
 /*
@@ -164,6 +165,8 @@ static unsigned long probe_rsa[PORT_RSA_MAX];
 static unsigned int probe_rsa_count;
 #endif /* CONFIG_SERIAL_8250_RSA  */
 
+#define UART_FCTR_RS485 ( 0x08 )
+
 struct uart_8250_port {
 	struct uart_port	port;
 	struct timer_list	timer;		/* "no irq" timer */
@@ -190,6 +193,7 @@ struct uart_8250_port {
 	unsigned char		msr_saved_flags;
 
 	struct serial_rs485     rs485_config;//
+	int						rs485_flag;
 };
 
 struct irq_info {
@@ -1696,6 +1700,11 @@ static unsigned int check_modem_status(struct uart_8250_port *up)
 
 	status |= up->msr_saved_flags;
 	up->msr_saved_flags = 0;
+
+	if (up->rs485_flag != 0) {
+		status |= UART_MSR_CTS;
+	}
+
 	if (status & UART_MSR_ANY_DELTA && up->ier & UART_IER_MSI &&
 	    up->port.state != NULL) {
 		if (status & UART_MSR_TERI)
@@ -2646,6 +2655,19 @@ cpscom_do_set_termios(struct uart_port *port, struct ktermios *termios,
 		}
 		serial_outp(up, UART_FCR, fcr);		/* set fcr */
 	}
+
+	if (up->rs485_flag != 0) {
+		unsigned char	fctr, old_lcr;
+
+		old_lcr = serial_inp(up, UART_LCR);
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		fctr = serial_inp(up, UART_FCTR);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485);
+
+		serial_outp(up, UART_LCR, old_lcr);
+	}
+
 	cpscom_set_mctrl(&up->port, up->port.mctrl);
 	spin_unlock_irqrestore(&up->port.lock, flags);
 	/* Don't rewrite B0 */
@@ -2944,8 +2966,9 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550/CPS16550A only )
 ***/
 
-#define UART_FCTR_RS485 ( 0x08 )
 #define SER_RS485_AUTORTS_ENABLE	(1 << 8)
+#define SER_RS485_SET_RS485			(1 << 9)
+
 static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long arg)
 {
 	struct uart_8250_port *up;
@@ -2984,6 +3007,18 @@ static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long 
 			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485 );
 		else
 			serial_outp(up, UART_FCTR, fctr & ~UART_FCTR_RS485 );
+
+		if (up->rs485_config.flags & SER_RS485_ENABLED) {
+			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485);
+		}
+		if (up->rs485_config.flags & SER_RS485_SET_RS485) {
+			if (up->rs485_config.flags & SER_RS485_ENABLED) {
+				up->rs485_flag = 1;
+			}
+			else {
+				up->rs485_flag = 0;
+			}
+		}
 
 		serial_outp(up, UART_LCR, old_lcr);
 
@@ -3097,6 +3132,8 @@ static int cpscom_getchannel_of_device( int devNum ){
 		case CPS_DEVICE_COM1PD:
 		case CPS_DEVICE_COM1PC:
 		case CPS_DEVICE_COM1QL:
+		//2018.03.06
+		case CPS_DEVICE_COM1LC:
 			return 1;	
 		default:
 			return 0;	
@@ -3139,6 +3176,8 @@ static void __init cpscom_init_ports(void)
 		up->mcr_force = ALPHA_KLUDGE_MCR;
 
 		up->port.ops = &cpscom_pops;
+
+		up->rs485_flag = 0;
 	}
 
 	if (share_irqs)
@@ -3728,7 +3767,7 @@ static int contec_mcs341_power_show(struct device *dev, struct device_attribute 
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
-	 @return buf : 0 または　1
+	 @return buf : Failed :-1  Success : more than 0
 	 @detail loraモジュールをON/OFFする
 **/
 static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
@@ -3738,12 +3777,24 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 	unsigned short valb3=0x0011;
 
 	struct uart_port * uport = dev_get_drvdata(dev);
+
+	//2018.05.11
+	int device_ID;
 	
 	unsigned int devnum = 
 		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
 
 	unsigned int addr1 = 0x30;
 	unsigned int addr2 = 0x34;		
+
+	device_ID = contec_mcs341_device_productid_get( devnum );
+
+	//2018.05.11
+	switch ( device_ID ){
+		case CPS_DEVICE_COM1QL: valb2=0x0000; valb3=0x0011;break;
+		case CPS_DEVICE_COM1LC: valb2=0x0000; valb3=0x0010;break;
+		default : return -1;
+	}
 
 	switch( buf[0] ){
 		case '0':
@@ -3814,13 +3865,15 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
  static int contec_mcs341_lora_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
 	struct uart_port * uport = dev_get_drvdata(dev);
+	//2018.05.11
+	int device_ID;
 	
 	unsigned int devnum = 
 		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
 
-	lora_deviceID = contec_mcs341_device_productid_get( devnum );
+	device_ID = contec_mcs341_device_productid_get( devnum );
 	
-	return sprintf(buf,"%x", lora_deviceID);
+	return sprintf(buf,"%x", device_ID);
  }
  static DEVICE_ATTR(id , S_IRUSR | S_IRGRP | S_IROTH ,contec_mcs341_lora_deviceID_show, NULL );
 
@@ -4041,26 +4094,33 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 **/
  static int contec_mcs341_create_8250_device_sysfs(struct device *devp){
  
-	 int err;
-	 struct uart_port * uport = dev_get_drvdata(devp);
-	 
-	 unsigned int devnum = 
-		 contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+	int err = 0;
+    //2018.05.11
+	int device_ID;
+	struct uart_port * uport = dev_get_drvdata(devp);
+	
+	unsigned int devnum = 
+	contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
  
-	 lora_deviceID = contec_mcs341_device_productid_get( devnum );
+	device_ID = contec_mcs341_device_productid_get( devnum );
 
-	 if(lora_deviceID == CPS_DEVICE_COM1QL){
-		 err = device_create_file(devp, &dev_attr_dev_power);
-		 err |= device_create_file(devp, &dev_attr_interrupt);
-		 err |= device_create_file(devp, &dev_attr_led0_restore);
-		 err |= device_create_file(devp, &dev_attr_led1_restore);
-		 err |= device_create_file(devp, &dev_attr_led2_restore);
-		 err |= device_create_file(devp, &dev_attr_led3_restore);
-
-		}
-		err |= device_create_file(devp,&dev_attr_id);
-		return err;
+	switch(device_ID){
+		case CPS_DEVICE_COM1QL :
+			err = device_create_file(devp, &dev_attr_dev_power);
+			err |= device_create_file(devp, &dev_attr_interrupt);
+			err |= device_create_file(devp, &dev_attr_led0_restore);
+			err |= device_create_file(devp, &dev_attr_led1_restore);
+			err |= device_create_file(devp, &dev_attr_led2_restore);
+			err |= device_create_file(devp, &dev_attr_led3_restore);
+		break;
+		//2018.05.11
+		case CPS_DEVICE_COM1LC :
+			err = device_create_file(devp, &dev_attr_dev_power);
+		break;
 	}
+	err |= device_create_file(devp,&dev_attr_id);
+	return err;
+}
 	
 /**
 	@~Japanese
@@ -4071,19 +4131,27 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
 {
 	struct uart_port * uport = dev_get_drvdata(devp);
+	//2018.05.11
+	int device_ID;
 	
 	unsigned int devnum = 
 		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
 
-	lora_deviceID = contec_mcs341_device_productid_get( devnum );
+	device_ID = contec_mcs341_device_productid_get( devnum );
 
-	if(lora_deviceID == CPS_DEVICE_COM1QL){
-		device_remove_file(devp, &dev_attr_dev_power);
-		device_remove_file(devp, &dev_attr_interrupt);
-		device_remove_file(devp, &dev_attr_led0_restore);
-		device_remove_file(devp, &dev_attr_led1_restore);
-		device_remove_file(devp, &dev_attr_led2_restore);
-		device_remove_file(devp, &dev_attr_led3_restore);
+	switch(device_ID){
+		case CPS_DEVICE_COM1QL :
+			device_remove_file(devp, &dev_attr_dev_power);
+			device_remove_file(devp, &dev_attr_interrupt);
+			device_remove_file(devp, &dev_attr_led0_restore);
+			device_remove_file(devp, &dev_attr_led1_restore);
+			device_remove_file(devp, &dev_attr_led2_restore);
+			device_remove_file(devp, &dev_attr_led3_restore);
+		break;
+		//2018.05.11
+		case CPS_DEVICE_COM1LC :
+			device_remove_file(devp, &dev_attr_dev_power);
+		break;
 	}
 	device_remove_file(devp, &dev_attr_id);
  }

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+GLOBAL_MANUFACTURE_ID="0027.01"
+
 create_mcs341_driver_check(){
 MANUFACTURE_ID=$1
 
@@ -48,11 +50,11 @@ chmod 755 driver_version_check
 
 
 cd mcs341
-create_mcs341_driver_check "0024"
+create_mcs341_driver_check $GLOBAL_MANUFACTURE_ID
 ./driver_version_check
 
 cd ../mc341
-create_mc341_driver_check "0024"
+create_mc341_driver_check $GLOBAL_MANUFACTURE_ID
 ./driver_version_check
 
 cd ../
