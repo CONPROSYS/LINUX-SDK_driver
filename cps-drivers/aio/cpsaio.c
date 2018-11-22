@@ -41,11 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-<<<<<<< HEAD
 #define DRV_VERSION	"1.1.2"
-=======
-#define DRV_VERSION	"1.1.0.1"
->>>>>>> refs/heads/WIP_Change_Makefile_in_spidio
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
