@@ -1736,6 +1736,9 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						valdw = 999;
 						CPSAIO_COMMAND_AI_SETSAMPNUM((unsigned long)dev->baseAddr , &valdw );
 
+						// Memory Type
+						dev->data.ai.user.MemoryType = 0;// FIFO
+
 						// Reset Status
 						cpsaio_reset_status( CPS_AIO_INOUT_AI , (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETDEVICE );
 					}
@@ -2011,6 +2014,59 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						}
 					}
 					break;
+		case IOCTL_CPSAIO_MEMORY_TYPE:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :
+
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ai.user.MemoryType = ioc.val;						
+							break;
+						case CPS_AIO_DERECTION_GET:
+							ioc.val = dev->data.ai.user.MemoryType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;								
+						}
+					
+						break;
+					case CPS_AIO_INOUT_AO:
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ao.user.MemoryType = ioc.val;
+							break;
+						case CPS_AIO_DERECTION_GET:		
+							ioc.val = dev->data.ao.user.MemoryType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;
+						}
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( ioc.isDerection == CPS_AIO_DERECTION_GET ){
+						if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+							DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE COPY FROM ioc to arg ERROR.");						
+							return -EFAULT;
+						}
+					}
+					break;					
 /////// MEMORY I/O COMMAND ////////
 
 		case IOCTL_CPSAIO_GETMEMSTATUS:

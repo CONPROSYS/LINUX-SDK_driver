@@ -42,6 +42,7 @@ typedef struct __cpsaio_user_data{
 	unsigned long RepeatTimes; // Ver 1.1.0
 	unsigned short Channel;
 	short StopTriggerType;
+	unsigned short MemoryType;
 }CPSAIO_USER_DATA, *PCPSAIO_USER_DATA;
 
 /**
@@ -187,14 +188,12 @@ struct cpsaio_direct_command_arg{
 
 //#define CPS_AIO_AI_STATUS_MOTION_END					0x00008000
 
-///< PCへ渡す用ステータスマクロ
-///< 本来AioGetAiStatusは32bitだが仮想アドレスマップが16bitしか用意されていない
-///< そのためAioGetAiStatusのステータス値とは少し異なる
+///< ステータスマクロ
 #define CPS_AIO_AIS_BUSY		0x0001
 #define CPS_AIO_AIS_START_TRG	0x0002
 #define CPS_AIO_AIS_DATA_NUM	0x0010
-#define CPS_AIO_AIS_OFERR		0x0100
-#define CPS_AIO_AIS_SCERR		0x0200
+#define CPS_AIO_AIS_OFERR		0x00010000
+#define CPS_AIO_AIS_SCERR		0x00020000
 
 ///< アナログ入力フラグマクロ
 #define CPS_AIO_AI_FLAG_SCAN_END	0x0001
@@ -283,6 +282,8 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_RESET_STATUS	_IOW(CPSAIO_MAGIC, 45, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_RESET_MEMORY	_IOW(CPSAIO_MAGIC, 46, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_STOPTRIGGER_TYPE	_IOWR(CPSAIO_MAGIC, 47, struct cpsaio_ioctl_arg)
+
+#define IOCTL_CPSAIO_MEMORY_TYPE	_IOWR(CPSAIO_MAGIC, 48, struct cpsaio_ioctl_arg)
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)
 #define IOCTL_CPSAIO_DIRECT_INPUT _IOR(CPSAIO_MAGIC, 65, struct cpsaio_direct_arg)
