@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.5"
+#define DRV_VERSION	"1.0.6"
 
 /*
  * Configuration:
@@ -165,6 +165,8 @@ static unsigned long probe_rsa[PORT_RSA_MAX];
 static unsigned int probe_rsa_count;
 #endif /* CONFIG_SERIAL_8250_RSA  */
 
+#define UART_FCTR_RS485 ( 0x08 )
+
 struct uart_8250_port {
 	struct uart_port	port;
 	struct timer_list	timer;		/* "no irq" timer */
@@ -191,6 +193,7 @@ struct uart_8250_port {
 	unsigned char		msr_saved_flags;
 
 	struct serial_rs485     rs485_config;//
+	int						rs485_flag;
 };
 
 struct irq_info {
@@ -1697,6 +1700,11 @@ static unsigned int check_modem_status(struct uart_8250_port *up)
 
 	status |= up->msr_saved_flags;
 	up->msr_saved_flags = 0;
+
+	if (up->rs485_flag != 0) {
+		status |= UART_MSR_CTS;
+	}
+
 	if (status & UART_MSR_ANY_DELTA && up->ier & UART_IER_MSI &&
 	    up->port.state != NULL) {
 		if (status & UART_MSR_TERI)
@@ -2647,6 +2655,19 @@ cpscom_do_set_termios(struct uart_port *port, struct ktermios *termios,
 		}
 		serial_outp(up, UART_FCR, fcr);		/* set fcr */
 	}
+
+	if (up->rs485_flag != 0) {
+		unsigned char	fctr, old_lcr;
+
+		old_lcr = serial_inp(up, UART_LCR);
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		fctr = serial_inp(up, UART_FCTR);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485);
+
+		serial_outp(up, UART_LCR, old_lcr);
+	}
+
 	cpscom_set_mctrl(&up->port, up->port.mctrl);
 	spin_unlock_irqrestore(&up->port.lock, flags);
 	/* Don't rewrite B0 */
@@ -2945,8 +2966,9 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550/CPS16550A only )
 ***/
 
-#define UART_FCTR_RS485 ( 0x08 )
 #define SER_RS485_AUTORTS_ENABLE	(1 << 8)
+#define SER_RS485_SET_RS485			(1 << 9)
+
 static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long arg)
 {
 	struct uart_8250_port *up;
@@ -2985,6 +3007,18 @@ static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long 
 			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485 );
 		else
 			serial_outp(up, UART_FCTR, fctr & ~UART_FCTR_RS485 );
+
+		if (up->rs485_config.flags & SER_RS485_ENABLED) {
+			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485);
+		}
+		if (up->rs485_config.flags & SER_RS485_SET_RS485) {
+			if (up->rs485_config.flags & SER_RS485_ENABLED) {
+				up->rs485_flag = 1;
+			}
+			else {
+				up->rs485_flag = 0;
+			}
+		}
 
 		serial_outp(up, UART_LCR, old_lcr);
 
@@ -3142,6 +3176,8 @@ static void __init cpscom_init_ports(void)
 		up->mcr_force = ALPHA_KLUDGE_MCR;
 
 		up->port.ops = &cpscom_pops;
+
+		up->rs485_flag = 0;
 	}
 
 	if (share_irqs)
