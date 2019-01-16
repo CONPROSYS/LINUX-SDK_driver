@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.3.3.3 (2018/11/16)
+* Version : 1.4.0.0 (2019/01/16)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -49,7 +49,7 @@
 * cps-driver
     CPS-MCS341 Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt)
     * aio (Analog Input/Output)
-        * Version 1.1.0.1
+        * Version 1.2.0
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
@@ -66,7 +66,10 @@
     CPS-MCS341 I/O Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt)
 
 
-## Change log
+## Change logs
+* Ver.1.4.0.0
+    * cpsaio Ver.1.1.0.1 -> 1.2.0
+        * This driver addes the Sampling Data with Analog Input Modules.
 * Ver.1.3.3.3
     * Change Makefile in spi/dio.
 * Ver 1.3.3.2
