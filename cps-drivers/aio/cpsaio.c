@@ -785,14 +785,19 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 	case CPS_AIO_INOUT_AO :
 		cpsaio_read_ao_status( BaseAddr, &wAnalogStatus );
 
-		// AIS_BUSY
+		// AOS_BUSY
 		if( wAnalogStatus & 0x01 )	ulTmpStatus |= 0x00000001;
 		else ulTmpStatus &= ~(0x00000001);
 
 		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000001;
 		else ulTmpStatus &= ~(0x00000001);
 
+		///< Tempステータスを引数のステータスに格納
+		*ulStatus = ulTmpStatus;
+
 		break;
+	default :
+		return -EFAULT;
 	}	
 
 	return 0;
@@ -854,7 +859,9 @@ long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned 
 			case CPSAIO_CLEARTYPE_RESETDEVICE:
 				ai_flag = 0xFFFF;
 				mem_flag = 0xFFFF;
-				break;						
+				break;
+			default:
+				return -EFAULT;					
 		} 
 		_cpsaio_clear_status( BaseAddr , mem_flag, ai_flag , ao_flag );
 		break;
@@ -866,7 +873,7 @@ long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned 
 		return -EFAULT;		
 	}	
 
-		return 0;
+	return 0;
 }
 
 /**
