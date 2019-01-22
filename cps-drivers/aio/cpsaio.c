@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.1.0.1"
+#define DRV_VERSION	"1.2.0"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -51,6 +51,9 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSAIO_DRIVER_NAME "cpsaio"
 
+#define CPSAIO_CLEARTYPE_RESETSTATUS 1
+#define CPSAIO_CLEARTYPE_RESETMEMORY 2
+#define CPSAIO_CLEARTYPE_RESETDEVICE 3
 /**
 	@struct cps_aio_data
 	@~English
@@ -115,6 +118,12 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
 #endif
 
+#if 0
+#define DEBUG_CPSAIO_START_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSAIO_START_CHECK(fmt...)	do { } while (0)
+#endif
+
 /// @}
 
 static int cpsaio_max_devs;			///< device count
@@ -143,12 +152,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AI_1608LI ,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AI | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 16,
-			.Channel = 8,
+			.fixed ={
+				.Resolution = 16,
+				.Channel = 8,
+			},
 		},
 		.ao = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed = {
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 	},
 	{
@@ -156,12 +169,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AO_1604LI,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AO | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 		.ao = {
-			.Resolution = 16,
-			.Channel = 4,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 4,
+			},
 		},
 	},
 	{
@@ -169,12 +186,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AI_1608ALI ,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AI | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 16,
-			.Channel = 8,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 8,
+			},
 		},
 		.ao = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 	},
 	{
@@ -182,12 +203,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = CPS_DEVICE_AO_1604VLI,
 		.Ability = CPS_AIO_ABILITY_ECU | CPS_AIO_ABILITY_AO | CPS_AIO_ABILITY_MEM,
 		.ai = {
-			.Resolution = 0,
-			.Channel = 0,
+			.fixed ={			
+				.Resolution = 0,
+				.Channel = 0,
+			},
 		},
 		.ao = {
-			.Resolution = 16,
-			.Channel = 4,
+			.fixed ={			
+				.Resolution = 16,
+				.Channel = 4,
+			},
 		},
 	},
 	{
@@ -195,12 +220,16 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 		.ProductNumber = -1,
 		.Ability = -1,
 		.ai = {
-			.Resolution = -1,
-			.Channel = -1,
+			.fixed ={			
+				.Resolution = -1,
+				.Channel = -1,
+			},
 		},
 		.ao = {
-			.Resolution = -1,
-			.Channel = -1,
+			.fixed ={
+				.Resolution = -1,
+				.Channel = -1,
+			},
 		},
 	},
 };
@@ -219,7 +248,7 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 **/
 static int _cpsaio_ai_sampling_thread(void *context_dev)
 {
-	PCPSAIO_DRV_FILE dev;
+	PCPSAIO_DRV_FILE dev = NULL;
 
 	while(!kthread_should_stop()){
 		schedule();
@@ -377,7 +406,7 @@ static long cpsaio_read_interrupt_status( unsigned long BaseAddr, unsigned short
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_ECU_INTERRUPT_CHECK_CPS_AIO );
 	cps_common_inpw( ulAddr , wIntStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wIntStatus );
 	return 0;
 }
 
@@ -679,6 +708,175 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 /// @}
 
 /**
+	@~English
+	@brief This function get analog input status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, unsigned long *ulStatus )
+{
+	unsigned short wAnalogStatus = 0, wAnalogFlag = 0;
+	unsigned long ulTmpStatus = 0;
+
+	switch( inout ){
+	case CPS_AIO_INOUT_AI :
+		///< アナログ入力ステータスを取得
+		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
+
+		// AIS_BUSY
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE ){
+			ulTmpStatus |= CPS_AIO_AIS_BUSY;
+		}
+		else{
+			ulTmpStatus &= ~(CPS_AIO_AIS_BUSY);
+		}
+
+		// AIS_START_TRG
+		if( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE){ 
+			if( wAnalogStatus & CPS_AIO_AI_STATUS_SAMPLING_BEFORE_TRIGGER_BUSY )
+			{
+				ulTmpStatus &= ~CPS_AIO_AIS_START_TRG;
+			}
+			else{
+				ulTmpStatus |= CPS_AIO_AIS_START_TRG;
+			}
+		}else{
+			ulTmpStatus &= ~CPS_AIO_AIS_START_TRG;
+		}		
+		// AIS_DATA_NUM
+		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
+		///< 本来本ステータスはイベント機能と連動している
+		///< ジェイテクト様向けにはイベント機能を未実装としているので、本ステータスも未実装とする
+		
+		wAnalogFlag = 0;
+
+		///< メモリフラグを取得
+		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+
+		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_MEM_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
+
+		// AIS_OFERR (Overflow)
+		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW )	ulTmpStatus |= CPS_AIO_AIS_OFERR;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
+
+		wAnalogFlag = 0;
+
+		///< アナログ入力フラグを取得
+		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
+
+		///< CPS_AIO_AIS_DATA_NUM
+		//if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
+		//else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
+		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_AI_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
+		///< AIS_SCERR
+		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
+		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
+
+		///< Tempステータスを引数のステータスに格納
+		*ulStatus = ulTmpStatus;
+		
+		break;
+	case CPS_AIO_INOUT_AO :
+		cpsaio_read_ao_status( BaseAddr, &wAnalogStatus );
+
+		// AOS_BUSY
+		if( wAnalogStatus & 0x01 )	ulTmpStatus |= 0x00000001;
+		else ulTmpStatus &= ~(0x00000001);
+
+		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000001;
+		else ulTmpStatus &= ~(0x00000001);
+
+		///< Tempステータスを引数のステータスに格納
+		*ulStatus = ulTmpStatus;
+
+		break;
+	default :
+		return -EFAULT;
+	}	
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function get analog clear status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memflags, unsigned short aiflags , unsigned short aoflags )
+{
+
+	if( memflags )
+		CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG(BaseAddr , &memflags );
+
+	if( aiflags )
+		CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG(BaseAddr , &aiflags );
+	
+	if( aoflags )
+		CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG(BaseAddr , &aoflags );
+
+	return 0;	
+}
+
+/**
+	@~English
+	@brief This function get analog input status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned char FuncType  )
+{
+	unsigned short ai_flag = 0, ao_flag = 0, mem_flag = 0;
+
+	switch( inout ){
+	case CPS_AIO_INOUT_AI :
+		switch( FuncType ){
+			case CPSAIO_CLEARTYPE_RESETSTATUS:
+				ai_flag = 0xFFFF;
+				mem_flag = 0xFFFD;
+				break;
+			case CPSAIO_CLEARTYPE_RESETMEMORY:
+				mem_flag = 0xFFFF;
+				break;
+			case CPSAIO_CLEARTYPE_RESETDEVICE:
+				ai_flag = 0xFFFF;
+				mem_flag = 0xFFFF;
+				break;
+			default:
+				return -EFAULT;					
+		} 
+		_cpsaio_clear_status( BaseAddr , mem_flag, ai_flag , ao_flag );
+		break;
+
+	case CPS_AIO_INOUT_AO :
+		_cpsaio_clear_status( BaseAddr , 0xFFFF, 0 , 0xFFFF );
+		break;
+	default:
+		return -EFAULT;		
+	}	
+
+	return 0;
+}
+
+/**
 	@brief cpsaio_read_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
@@ -865,7 +1063,7 @@ irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 		DEBUG_CPSAIO_INTERRUPT_CHECK("AI Interrupt Flag : %x \n", wData );
 
 		if( wData ){
-			CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+//			CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
 			handled = 1;
 		}
 	}
@@ -877,7 +1075,7 @@ irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 		DEBUG_CPSAIO_INTERRUPT_CHECK("AO Interrupt Flag : %x \n", wData );
 
 		if( wData ){
-			CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+//			CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
 			handled = 1;
 		}
 	}
@@ -889,7 +1087,7 @@ irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 		DEBUG_CPSAIO_INTERRUPT_CHECK("MEM Interrupt Flag : %x \n", wData );
 
 		if( wData ){
-			CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+//			CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
 			handled = 1;
 		}
 	}
@@ -1092,8 +1290,9 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
-					ioc.val = (unsigned long) valw;
+					cpsaio_get_status(CPS_AIO_INOUT_AI, (unsigned long)dev->baseAddr , &valdw );
+					//cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
+					ioc.val = (unsigned long) valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
@@ -1113,7 +1312,38 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						return -EIO;
 					}
 			*/
+
+					//Before Open
+					/* 
+					if( dev->data.ai.user.SamplingTimes == 1 ){
+						valdw = dev->data.ai.user.SamplingTimes - 1;
+					}
+					else{
+						valdw = (unsigned long) ( (dev->data.ai.user.SamplingTimes - 1) * (dev->data.ai.user.Channel + 1) );						
+					}
+
+					DEBUG_CPSAIO_IOCTL(KERN_INFO" Sampling Time (%d)x(%d) = %ld\n",(dev->data.ai.user.Channel + 1), dev->data.ai.user.SamplingTimes, valdw);
+					CPSAIO_COMMAND_AI_SETSAMPNUM( (unsigned long)dev->baseAddr, &valdw );
+					*/
+
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
+
+					{
+						int count = 0;
+						do{
+							contec_cps_micro_sleep( 1 );
+							cpsaio_read_ai_status((unsigned long)dev->baseAddr , &valw );
+							if( count >= 1000 ){
+								DEBUG_CPSAIO_START_CHECK(KERN_ERR"Timeout %d status \n", count, valw );
+								return -ETIMEDOUT;
+							}
+							count ++;
+						}while( valw & CPS_AIO_AI_STATUS_START_DISABLE );
+						
+					}
+
+					// SoftTrigger ON
+					CPSAIO_COMMAND_ECU_OUTPULSE0( (unsigned long)dev->baseAddr);
 
 					break;
 		case IOCTL_CPSAIO_STOP_AI:
@@ -1135,6 +1365,7 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
+					dev->data.ai.user.Channel = (unsigned short) ioc.val;
 					CPSAIO_COMMAND_AI_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1157,16 +1388,21 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 
 		case IOCTL_CPSAIO_SET_CLOCK_AI:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_SET_CLOCK NULL VERIFY READ.");						
 						return -EFAULT;
 					}
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_SET_CLOCK COPY FROM arg to ioc ERROR.");	
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
+					dev->data.ai.user.Clock = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
+
 					spin_unlock_irqrestore(&dev->lock, flags);
+					DEBUG_CPSAIO_IOCTL("driver : Set sampling clock %d %lx \n", dev->node, dev->data.ai.user.Clock);
 
 					break;
 		case IOCTL_CPSAIO_SET_SAMPNUM_AI:
@@ -1179,6 +1415,7 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
+					dev->data.ai.user.SamplingTimes = valdw;
 					CPSAIO_COMMAND_AI_SETSAMPNUM( (unsigned long)dev->baseAddr, &valdw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1231,13 +1468,13 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_AI_FIFO_COUNTER( (unsigned long)dev->baseAddr, &valw );
-					ioc.val = (unsigned long)valw;
+					ioc.val = (unsigned long)valw; 
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					break;
+					break;																
 		}
 
 		return 0;
@@ -1331,6 +1568,8 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = (unsigned long) ioc.val;
 					CPSAIO_COMMAND_AO_SETCLOCK( (unsigned long)dev->baseAddr, &valdw );
+
+					dev->data.ao.user.Clock = valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
@@ -1478,18 +1717,62 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 /* Analog Common */
 		case IOCTL_CPSAIO_INIT:
+					// At First, InitialCommand
 					CPSAIO_COMMAND_ECU_INIT( (unsigned long)dev->baseAddr );
-					if( dev->data.ai.Channel > 0 )
+					if( dev->data.ai.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AI_INIT( (unsigned long)dev->baseAddr );
-					if( dev->data.ao.Channel > 0 )
+					if( dev->data.ao.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AO_INIT( (unsigned long)dev->baseAddr );
 					CPSAIO_COMMAND_MEM_INIT( (unsigned long)dev->baseAddr );
+
+					// At second, Initialize Set Parameter
+					spin_lock_irqsave(&dev->lock, flags);					
+					if( dev->data.ai.fixed.Channel > 0){
+						valw = 1; // multi
+
+						CPSAIO_COMMAND_AI_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
+						dev->data.ai.user.Channel = 0;
+						valw = 0; // channel
+						CPSAIO_COMMAND_AI_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
+						valdw = 0x9C3F; // 1000usec
+						dev->data.ai.user.Clock = 0x9C3F;
+						CPSAIO_COMMAND_AI_SETCLOCK( (unsigned long)dev->baseAddr , &valdw );
+						DEBUG_CPSAIO_IOCTL("driver : Reset sampling clock [%d] %lx \n", dev->node, valdw);
+						// 1000						
+						dev->data.ai.user.SamplingTimes = 999;
+						valdw = 999;
+						CPSAIO_COMMAND_AI_SETSAMPNUM((unsigned long)dev->baseAddr , &valdw );
+
+						// Memory Type
+						dev->data.ai.user.MemoryType = 0;// FIFO
+
+						// Reset Status
+						cpsaio_reset_status( CPS_AIO_INOUT_AI , (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETDEVICE );
+					}
+					if( dev->data.ao.fixed.Channel > 0){
+						valw = 1; // multi
+						CPSAIO_COMMAND_AO_SINGLEMULTI( (unsigned long)dev->baseAddr , &valw );
+						dev->data.ao.user.Channel = 0;
+						valw = 0; // channel
+						CPSAIO_COMMAND_AO_SETCHANNEL( (unsigned long)dev->baseAddr , &valw );
+						valdw = 0x9C3F; // 1000usec
+						dev->data.ao.user.Clock = 0x9C3F;						
+						CPSAIO_COMMAND_AO_SETCLOCK( (unsigned long)dev->baseAddr , &valdw );
+						valdw = 999;
+						dev->data.ao.user.SamplingTimes = 999;
+						CPSAIO_COMMAND_AO_SETSAMPNUM((unsigned long)dev->baseAddr , &valdw );
+
+						// Reset Status
+						cpsaio_reset_status( CPS_AIO_INOUT_AO , (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETDEVICE );						
+					}					
+					spin_unlock_irqrestore(&dev->lock, flags);
+
 					break;
 
 		case IOCTL_CPSAIO_EXIT:
-					if( dev->data.ai.Channel > 0 )
+					if( dev->data.ai.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AI_STOP( (unsigned long)dev->baseAddr );
-					if( dev->data.ao.Channel > 0 )
+					if( dev->data.ao.fixed.Channel > 0 )
 						CPSAIO_COMMAND_AO_STOP( (unsigned long)dev->baseAddr );
 					break;
 
@@ -1503,11 +1786,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :
-						ioc.val = dev->data.ai.Resolution	;
+						ioc.val = dev->data.ai.fixed.Resolution	;
 						break;
 					case CPS_AIO_INOUT_AO:
-						ioc.val = dev->data.ao.Resolution	;
+						ioc.val = dev->data.ao.fixed.Resolution	;
 						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
 					}
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1526,11 +1812,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( ioc.inout ){
 					case CPS_AIO_INOUT_AI :				
-						ioc.val = dev->data.ai.Channel	;
+						ioc.val = dev->data.ai.fixed.Channel;
 						break;
 					case CPS_AIO_INOUT_AO:
-						ioc.val = dev->data.ao.Channel	;
+						ioc.val = dev->data.ao.fixed.Channel;
 						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
 					}
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1539,6 +1828,252 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;	
 
+////////
+		case IOCTL_CPSAIO_RESET_STATUS:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					cpsaio_reset_status( ioc.inout, (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETSTATUS );
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					break;
+		case IOCTL_CPSAIO_RESET_MEMORY:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+
+					cpsaio_reset_status( ioc.inout, (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETMEMORY );
+
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :				
+						CPSAIO_COMMAND_AI_CLR( (unsigned long)dev->baseAddr );
+						break;
+					case CPS_AIO_INOUT_AO:
+						CPSAIO_COMMAND_AO_CLR( (unsigned long)dev->baseAddr );
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
+					}
+
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					break;
+		case IOCTL_CPSAIO_GET_CLOCK:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :		
+						ioc.val = dev->data.ai.user.Clock;
+						
+						break;
+					case CPS_AIO_INOUT_AO:
+						ioc.val = dev->data.ao.user.Clock;
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+					DEBUG_CPSAIO_IOCTL("driver : Get clock %d %x \n", dev->node, ioc.val);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CLOCK COPY FROM ioc to arg ERROR.");						
+						return -EFAULT;
+					}
+					break;							
+
+		case IOCTL_CPSAIO_GET_SAMPNUM:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_SAMPNUM NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_SAMPNUM COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :		
+						ioc.val = dev->data.ai.user.SamplingTimes;
+						break;
+					case CPS_AIO_INOUT_AO:
+						ioc.val = dev->data.ao.user.SamplingTimes;
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_SAMPNUM COPY FROM ioc to arg ERROR.");						
+						return -EFAULT;
+					}
+					break;	
+		case IOCTL_CPSAIO_GETCHANNEL:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CHANNEL NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CHANNEL COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :		
+						ioc.val = dev->data.ai.user.Channel;
+						break;
+					case CPS_AIO_INOUT_AO:
+						ioc.val = dev->data.ao.user.Channel;
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_GET_CHANNEL COPY FROM ioc to arg ERROR.");						
+						return -EFAULT;
+					}
+					break;					
+
+		case IOCTL_CPSAIO_STOPTRIGGER_TYPE:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_STOPTRIGGER_TYPE NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_STOPTRIGGER_TYPE COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :
+
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ai.user.StopTriggerType = ioc.val;
+
+							// switch(ioc.val){
+							// case 0:
+							// 	valdw = CPS_AIO_ECU_DESTSRC_SIGNAL(CPS_AIO_ECU_DEST_AI_STOP, CPS_AIO_ECU_SRC_AI_STOP);
+							// 	CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( (unsigned long)dev->baseAddr , &valdw );
+							// 	break;
+							// case 4:
+							// 	valdw = CPS_AIO_ECU_DESTSRC_SIGNAL(CPS_AIO_ECU_DEST_AI_STOP, CPS_AIO_ECU_SRC_START);
+							// 	CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( (unsigned long)dev->baseAddr , &valdw );
+							// 	break;
+							// }								
+							break;
+						case CPS_AIO_DERECTION_GET:
+							ioc.val = dev->data.ai.user.StopTriggerType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;								
+						}
+					
+						break;
+					case CPS_AIO_INOUT_AO:
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ao.user.StopTriggerType = ioc.val;
+							break;
+						case CPS_AIO_DERECTION_GET:		
+							ioc.val = dev->data.ao.user.StopTriggerType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;
+						}
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( ioc.isDerection == CPS_AIO_DERECTION_GET ){
+						if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+							DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_STOPTRIGGER COPY FROM ioc to arg ERROR.");						
+							return -EFAULT;
+						}
+					}
+					break;
+		case IOCTL_CPSAIO_MEMORY_TYPE:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE NULL VERIFY WRITE.");
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE COPY FROM arg to ioc ERROR.");						
+						return -EFAULT;
+					}
+
+					spin_lock_irqsave(&dev->lock, flags);
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :
+
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ai.user.MemoryType = ioc.val;						
+							break;
+						case CPS_AIO_DERECTION_GET:
+							ioc.val = dev->data.ai.user.MemoryType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;								
+						}
+					
+						break;
+					case CPS_AIO_INOUT_AO:
+						switch(ioc.isDerection){
+						case CPS_AIO_DERECTION_SET:
+							dev->data.ao.user.MemoryType = ioc.val;
+							break;
+						case CPS_AIO_DERECTION_GET:		
+							ioc.val = dev->data.ao.user.MemoryType;
+							break;
+						default:
+							spin_unlock_irqrestore(&dev->lock, flags);
+							return -EFAULT;
+						}
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;
+					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( ioc.isDerection == CPS_AIO_DERECTION_GET ){
+						if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+							DEBUG_CPSAIO_IOCTL(KERN_INFO"CPSAIO_MEMORY_TYPE COPY FROM ioc to arg ERROR.");						
+							return -EFAULT;
+						}
+					}
+					break;					
 /////// MEMORY I/O COMMAND ////////
 
 		case IOCTL_CPSAIO_GETMEMSTATUS:
@@ -1732,7 +2267,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					case CPS_DEVICE_AI_1608LI:
 					case CPS_DEVICE_AI_1608ALI: num = 1;break;
 					case CPS_DEVICE_AO_1604LI:
-					case CPS_DEVICE_AO_1604VLI : num = dev->data.ao.Channel;break;
+					case CPS_DEVICE_AO_1604VLI : num = dev->data.ao.fixed.Channel;break;
 					}
 
 					spin_unlock_irqrestore(&dev->lock, flags);
@@ -1967,9 +2502,9 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 	}
 
 out:
-	valw = 0xFFFF;
-	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
-	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
+//	valw = ( 0xFFFF );
+//	CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
+//	CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &valw ); 
 	return retval;
 
 }
