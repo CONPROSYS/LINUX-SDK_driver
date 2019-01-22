@@ -11,12 +11,12 @@ echo "CPS_DRIVER_MANUFACTURE_ID=$MANUFACTURE_ID" >> driver_version_check
 echo " " >> driver_version_check
 echo "PWD=\$(pwd)" >> driver_version_check
 echo " " >> driver_version_check
-echo "CPS_DRIVER_VERSION=\$(/sbin/modinfo '$PWD'/cps-driver.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_DIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsdio.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_AIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsaio.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_COM_VERSION=\$(/sbin/modinfo '$PWD'/8250_cpscom.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_SSI_VERSION=\$(/sbin/modinfo '$PWD'/cpsssi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_CNT_VERSION=\$(/sbin/modinfo '$PWD'/cpscnt.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_DRIVER_VERSION=\$(/sbin/modinfo \$PWD/cps-driver.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_DIO_VERSION=\$(/sbin/modinfo \$PWD/cpsdio.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_AIO_VERSION=\$(/sbin/modinfo \$PWD/cpsaio.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_COM_VERSION=\$(/sbin/modinfo \$PWD/8250_cpscom.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_SSI_VERSION=\$(/sbin/modinfo \$PWD/cpsssi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_CNT_VERSION=\$(/sbin/modinfo \$PWD/cpscnt.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo " " >> driver_version_check
 echo "echo \"-------- Driver Manufacture ID ------------------\"" >> driver_version_check
 echo "echo \"Manufacture ID : \$CPS_DRIVER_MANUFACTURE_ID \"" >> driver_version_check
@@ -41,7 +41,7 @@ echo "PWD=\$(pwd)" >> driver_version_check
 echo " " >> driver_version_check
 echo "CPS_DRIVER_MANUFACTURE_ID=$MANUFACTURE_ID" >> driver_version_check
 echo " " >> driver_version_check
-echo "CPS_SPIDIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsdio_spi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_SPIDIO_VERSION=\$(/sbin/modinfo \$PWD/cpsdio_spi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo " " >> driver_version_check
 echo "echo \"-------- Driver Manufacture ID ------------------\"" >> driver_version_check
 echo "echo \"Manufacture ID : \$CPS_DRIVER_MANUFACTURE_ID \"" >> driver_version_check
