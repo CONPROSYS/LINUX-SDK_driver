@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.2.0"
+#define DRV_VERSION	"1.2.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -122,6 +122,12 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_START_CHECK(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_START_CHECK(fmt...)	do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_CPSAIO_STATUS_VALUE(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSAIO_STATUS_VALUE(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -553,6 +559,10 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 4, CPS_AIO_COMMAND_ECU_SETINPUTSIGNAL, data )
 #define CPSAIO_COMMAND_ECU_OUTPULSE0( addr )	\
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_GENERAL_PULSE_COM0, NULL )
+#define CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 4, CPS_AIO_COMMAND_ECU_AI_UNUSUAL_STOP, data )
+#define CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 4, CPS_AIO_COMMAND_ECU_AO_UNUSUAL_STOP, data )	
 #define CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_AI_INTERRUPT_FLAG, data )
 #define CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( addr, data ) \
@@ -752,7 +762,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		// AIS_DATA_NUM
 		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
 		///< 本来本ステータスはイベント機能と連動している
-		///< ジェイテクト様向けにはイベント機能を未実装としているので、本ステータスも未実装とする
+		///< イベント機能が未実装のため、本ステータスも未実装とする
 		
 		wAnalogFlag = 0;
 
@@ -762,9 +772,17 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_MEM_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
 
 		// AIS_OFERR (Overflow)
-		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW )	ulTmpStatus |= CPS_AIO_AIS_OFERR;
-		else ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
+		if( wAnalogFlag & CPS_AIO_MEM_FLAG_OVERFLOW ){
+			unsigned short valw = 0;
 
+			ulTmpStatus |= CPS_AIO_AIS_OFERR;
+			CPSAIO_COMMAND_AI_FIFO_COUNTER( BaseAddr, &valw );			
+			DEBUG_CPSAIO_STATUS_VALUE(KERN_INFO"OverFlow = %hx, ulTmpStatus %lx FifoCounter %hd\n", wAnalogFlag, ulTmpStatus, valw);
+
+		}
+		else{
+			ulTmpStatus &= ~(CPS_AIO_AIS_OFERR);
+		}
 		wAnalogFlag = 0;
 
 		///< アナログ入力フラグを取得
@@ -777,6 +795,21 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		///< AIS_SCERR
 		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
+
+
+		if( ulTmpStatus & (CPS_AIO_AIS_SCERR | CPS_AIO_AIS_OFERR) )
+		{
+			if( ulTmpStatus & CPS_AIO_AIS_BUSY ){
+				wAnalogStatus = 0;
+				do{
+					CPSAIO_COMMAND_AI_STOP( BaseAddr );
+					///< アナログ入力ステータスを取得
+					cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
+
+				}while( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE );
+				ulTmpStatus &= ~CPS_AIO_AIS_BUSY;
+			}
+		}
 
 		///< Tempステータスを引数のステータスに格納
 		*ulStatus = ulTmpStatus;
@@ -1295,6 +1328,10 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					ioc.val = (unsigned long) valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
+					if(valdw & CPS_AIO_AIS_OFERR){
+						DEBUG_CPSAIO_STATUS_VALUE(KERN_INFO":SamplingTimes %hd\n", (dev->data.ai.user.SamplingTimes + 1) );
+					}
+
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
@@ -1325,6 +1362,9 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					DEBUG_CPSAIO_IOCTL(KERN_INFO" Sampling Time (%d)x(%d) = %ld\n",(dev->data.ai.user.Channel + 1), dev->data.ai.user.SamplingTimes, valdw);
 					CPSAIO_COMMAND_AI_SETSAMPNUM( (unsigned long)dev->baseAddr, &valdw );
 					*/
+
+					// Set Unusual stop On
+					CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP((unsigned long)dev->baseAddr , 0x00010001 );
 
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
 
@@ -1589,6 +1629,10 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 
 					break;
 		case IOCTL_CPSAIO_START_AO:
+
+					// Set Unusual stop On
+					CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP((unsigned long)dev->baseAddr , 0x00000001 );
+
 					CPSAIO_COMMAND_AO_OPEN( (unsigned long)dev->baseAddr );
 					break;
 		case IOCTL_CPSAIO_STOP_AO:
