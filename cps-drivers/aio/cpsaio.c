@@ -761,7 +761,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		}		
 		// AIS_DATA_NUM
 		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
-		///< 本来本ステータスはイベント機能と連動している
+		///< 本ステータスはイベント機能と連動している
 		///< イベント機能が未実装のため、本ステータスも未実装とする
 		
 		wAnalogFlag = 0;
