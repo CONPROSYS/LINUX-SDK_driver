@@ -797,6 +797,9 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
 
 
+		// CPS-AI-1608LI / CPS-AI-1608ALI do not stop the sampling analog data
+		// when the overflow error flag or the oversampling error flag is on.
+		// 
 		if( ulTmpStatus & (CPS_AIO_AIS_SCERR | CPS_AIO_AIS_OFERR) )
 		{
 			if( ulTmpStatus & CPS_AIO_AIS_BUSY ){
@@ -1364,7 +1367,7 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					*/
 
 					// Set Unusual stop On
-					CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP((unsigned long)dev->baseAddr , 0x00010001 );
+					CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP((unsigned long)dev->baseAddr , (CPS_AIO_ECU_AI_UNU_STP_AI_OVERFLOW | CPS_AIO_ECU_AI_UNU_STP_AI_CLK_ERR) );
 
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
 
@@ -1631,7 +1634,7 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 		case IOCTL_CPSAIO_START_AO:
 
 					// Set Unusual stop On
-					CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP((unsigned long)dev->baseAddr , 0x00000001 );
+					CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP((unsigned long)dev->baseAddr , CPS_AIO_ECU_AO_UNU_STP_AO_CLK_ERR );
 
 					CPSAIO_COMMAND_AO_OPEN( (unsigned long)dev->baseAddr );
 					break;
