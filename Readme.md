@@ -67,10 +67,9 @@
 
 
 ## Change logs
-* Ver.1.4.0.0
-    * cpsaio Ver.1.1.0.1 -> 1.2.0
-        * This driver addes the Sampling Data with Analog Input Modules.
-        
+* Ver.1.4.1.0
+    * cpsaio Ver.1.2.0 -> 1.2.1
+        * This driver addes the usual stop command with Analog Input Modules.
 * Ver.1.4.0.0
     * cpsaio Ver.1.1.0.1 -> 1.2.0
         * This driver addes the Sampling Data with Analog Input Modules.
