@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.2"
+#define DRV_VERSION	"1.1.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -145,7 +145,7 @@ static unsigned char mcs341_fpga_reset_reg = 0; ///< fpga reset data
 #define CPS_MCS341_MAX_LED_ARRAY_NUM	4
 
 //2016.07.15 Global Spinlock
-spinlock_t		mcs341_eeprom_lock;
+spinlock_t		mcs341_access_lock;
 
 /**
 	@~English
@@ -205,6 +205,11 @@ static int CompleteDevIrqs ;
 //static unsigned char contec_mcs341_controller_setLed( int ledBit, int isEnable );
 //static unsigned char contec_mcs341_controller_setSystemInit(void);
 
+static void contec_mcs341_device_inpb(unsigned int dev, unsigned int offset, unsigned char *valb );
+static void contec_mcs341_device_outb(unsigned int dev, unsigned int offset, unsigned char valb );
+
+
+
 /**
 	@~English
 	@brief am335x_nmi_func
@@ -219,7 +224,7 @@ static int CompleteDevIrqs ;
 **/
 irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 
-	int cnt = 0;
+//	int cnt = 0;
 
 	int GrpNo, DevIrq;
 
@@ -336,22 +341,6 @@ static void __contec_cps_before_shutdown_wait_devices( void )
 
 /**
 	@~English
-	@brief MCS341 Controller's address write data.
-	@param addr : Address
-	@param valb : value
-	@~Japanese
-	@brief MCS341 Controllerのアドレスにデータを1バイト分書き出す関数
-	@param addr : アドレス
-	@param valb : 値
-**/
-static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
-{
-	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: Offset Address : %x Value %x \n", addr, valb );
-	cps_common_outb( (unsigned long)(map_baseaddr + addr), valb );
-}
-
-/**
-	@~English
 	@brief MCS341 Controller's address read data.
 	@param addr : Address
 	@param valb : value ( unsigned char )
@@ -362,9 +351,77 @@ static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
 **/
 static void contec_mcs341_inpb(unsigned int addr, unsigned char *valb )
 {
+	unsigned long flags = 0;
+
+	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_inpb( (unsigned long)(map_baseaddr + addr), valb );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: Offset Address : %x Value %x\n", addr, *valb );
 }
+EXPORT_SYMBOL_GPL(contec_mcs341_inpb);
+
+/**
+	@~English
+	@brief MCS341 Controller's address write data.
+	@param addr : Address
+	@param valb : value
+	@~Japanese
+	@brief MCS341 Controllerのアドレスにデータを1バイト分書き出す関数
+	@param addr : アドレス
+	@param valb : 値
+**/
+static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
+{
+	unsigned long flags = 0;
+
+	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: Offset Address : %x Value %x \n", addr, valb );
+	spin_lock_irqsave(&mcs341_access_lock, flags);
+	cps_common_outb( (unsigned long)(map_baseaddr + addr), valb );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);	
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_outb);
+
+/**
+	@~English
+	@brief MCS341 Controller's address read data.
+	@param addr : Address
+	@param valb : value ( unsigned short )
+	@~Japanese
+	@brief MCS341 Controllerのアドレスにデータを2バイト分読み出す関数
+	@param addr : アドレス
+	@param valb : 値
+**/
+static void contec_mcs341_inpw(unsigned int addr, unsigned short *valw )
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&mcs341_access_lock, flags);	
+	cps_common_inpw( (unsigned long)(map_baseaddr + addr), valw );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);
+	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: Offset Address : %x Value %hx\n", addr, *valw );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_inpw);
+
+/**
+	@~English
+	@brief MCS341 Controller's address write data.
+	@param addr : Address
+	@param valb : value ( unsigned short )
+	@~Japanese
+	@brief MCS341 Controllerのアドレスにデータを2バイト分書き出す関数
+	@param addr : アドレス
+	@param valb : 値
+**/
+static void contec_mcs341_outw(unsigned int addr, unsigned short valw )
+{
+	unsigned long flags = 0;
+
+	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: Offset Address : %x Value %hx \n", addr, valw );
+	spin_lock_irqsave(&mcs341_access_lock, flags);	
+	cps_common_outw( (unsigned long)(map_baseaddr + addr), valw );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);	
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_outw);
 
 /**
  @~English
@@ -932,7 +989,8 @@ static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 
 	if( deviceNumber != 0x3f && deviceNumber != 0 ){
 
-		cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
+		contec_mcs341_device_outb( 0, 0, (deviceNumber | 0x80 ) );
+		//cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
 		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
 
 		nInterrupt = (deviceNumber / 4) + 1;
@@ -1358,8 +1416,12 @@ void mcs341_controller_timer_function(unsigned long arg)
 **/
 static void contec_mcs341_device_outb(unsigned int dev, unsigned int offset, unsigned char valb )
 {
+	unsigned long flags = 0;
+
 	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %x \n", dev, offset, valb );
+	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_outb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_outb);
 
@@ -1377,8 +1439,12 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_outb);
 **/
 static void contec_mcs341_device_inpb(unsigned int dev, unsigned int offset, unsigned char *valb )
 {
+	unsigned long flags = 0;
+
 	if( valb != (unsigned char *)NULL ){
+		spin_lock_irqsave(&mcs341_access_lock, flags);
 		cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
+		spin_unlock_irqrestore(&mcs341_access_lock, flags);
 		DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %x\n", dev, offset, *valb );
 	}
 }
@@ -1398,8 +1464,12 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_inpb);
 **/
 static void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, unsigned short valw )
 {
+	unsigned long flags = 0;
+
 	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %hx \n", dev, offset, valw );
+	spin_lock_irqsave(&mcs341_access_lock, flags);	
 	cps_common_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+	spin_unlock_irqrestore(&mcs341_access_lock, flags);	
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_outw);
 /**
@@ -1416,8 +1486,12 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_outw);
 **/
 static void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, unsigned short *valw )
 {
+	unsigned long flags = 0;
+
 	if( valw != (unsigned short *)NULL ){
+		spin_lock_irqsave(&mcs341_access_lock, flags);		
 		cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+		spin_unlock_irqrestore(&mcs341_access_lock, flags);		
 		DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
 	}
 }
@@ -1631,8 +1705,8 @@ static unsigned char contec_mcs341_device_mirror_get( int dev , int num ){
 
 	if( dev >= deviceNumber ) return 0;
 	if( num < 0 || num > 1 ) return 0;
-	cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_MIRROR_REG_ADDR(num)), &valb );
-
+	contec_mcs341_device_inpb( dev, CPS_DEVICE_COMMON_MIRROR_REG_ADDR(num), &valb );
+	//cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_MIRROR_REG_ADDR(num)), &valb );
 	return valb;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_mirror_get);
@@ -1655,13 +1729,13 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_mirror_get);
 static unsigned char __contec_mcs341_device_rom_write_command( unsigned int dev, unsigned short valw )
 {
 
-	unsigned long flags;
+//	unsigned long flags = 0;
 
-	spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+//	spin_lock_irqsave(&mcs341_access_lock, flags);
 //	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ),
 	contec_mcs341_device_outw( dev, CPS_DEVICE_COMMON_ROM_WRITE_ADDR,
 		(valw | CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE ) );
-	spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+//	spin_unlock_irqrestore(&mcs341_access_lock, flags);
 
 	DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_ROM_WRITE_ADDR, (valw | CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE ) );
 
@@ -1681,11 +1755,11 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned int dev,
 			contec_cps_micro_sleep(200);break;
 	}
 
-	spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+//	spin_lock_irqsave(&mcs341_access_lock, flags);
 //	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ),
 	contec_mcs341_device_outw( dev, CPS_DEVICE_COMMON_ROM_WRITE_ADDR,
 		( (valw & 0x7F00) | CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED) );
-	spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+//	spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_ROM_WRITE_ADDR, ( (valw & 0x7F00) | CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED)  );
 
 	return 0;
@@ -1710,16 +1784,17 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned int dev,
 static unsigned char __contec_mcs341_device_logical_id( int dev, int isWrite, unsigned char *valb)
 {
 
-	unsigned long flags;
+//	unsigned long flags = 0;
 
 	if( dev >= deviceNumber ) return 1;
 
 	/* Device Id Write */
 	if( isWrite == CPS_DEVICE_COMMON_WRITE ){
-		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
-		cps_common_outb( (unsigned long)(map_devbaseaddr[dev]+ 
-			CPS_DEVICE_COMMON_LOGICALID_ADDR) , *valb );
-		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+		//spin_lock_irqsave(&mcs341_access_lock, flags);
+		contec_mcs341_device_outb( dev, CPS_DEVICE_COMMON_LOGICALID_ADDR, *valb );
+		//cps_common_outb( (unsigned long)(map_devbaseaddr[dev]+ 
+		//	CPS_DEVICE_COMMON_LOGICALID_ADDR) , *valb );
+		//spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	}
 
 	/* ROM ACCESS ENABLE */
@@ -1757,10 +1832,11 @@ static unsigned char __contec_mcs341_device_logical_id( int dev, int isWrite, un
 		CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE);
 
 	if( isWrite == CPS_DEVICE_COMMON_READ ){
-		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
-		cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] +
-				CPS_DEVICE_COMMON_LOGICALID_ADDR), valb );
-		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+//		spin_lock_irqsave(&mcs341_access_lock, flags);
+		contec_mcs341_device_inpb( dev, CPS_DEVICE_COMMON_LOGICALID_ADDR, &valb );
+		//cps_common_inpb( (unsigned long)(map_devbaseaddr[dev] +
+		//		CPS_DEVICE_COMMON_LOGICALID_ADDR), valb );	
+//		spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	}
 
 	return 0;
@@ -1861,7 +1937,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 {
 
 	unsigned short valExt , valA;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if( dev >= deviceNumber ){
 		DEBUG_EEPROM_CONTROL(KERN_INFO" device_extension_value : dev %d\n", dev );
@@ -1873,7 +1949,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 
 	/* value Write */
 	if( isWrite == CPS_DEVICE_COMMON_WRITE ){
-		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+		spin_lock_irqsave(&mcs341_access_lock, flags);
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valExt );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valExt );
@@ -1886,7 +1962,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valA );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valA );
-		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+		spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	}
 
 	/* ROM ACCESS ENABLE */
@@ -1929,7 +2005,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 			CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE );
 
 	if( isWrite == CPS_DEVICE_COMMON_READ ){
-		spin_lock_irqsave(&mcs341_eeprom_lock, flags);
+		spin_lock_irqsave(&mcs341_access_lock, flags);
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valExt );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valExt );
@@ -1942,7 +2018,7 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 		cps_common_outw( (unsigned long)(map_devbaseaddr[dev]+ 
 			CPS_DEVICE_COMMON_REVISION_ADDR) , valA );
 		DEBUG_EEPROM_CONTROL(KERN_INFO" <device_rom> : +%x [hex] <- [%x] \n", CPS_DEVICE_COMMON_REVISION_ADDR, valA );
-		spin_unlock_irqrestore(&mcs341_eeprom_lock, flags);
+		spin_unlock_irqrestore(&mcs341_access_lock, flags);
 	}
 
 	return 0;
@@ -2800,7 +2876,7 @@ static int contec_mcs341_controller_init(void)
 
 	if( !ret ){
 		// spin_lock initialize
-		spin_lock_init( &mcs341_eeprom_lock );
+		spin_lock_init( &mcs341_access_lock );
 
 		ret = platform_driver_register(&contec_mcs341_driver);
 		if( !ret ){

@@ -10,6 +10,7 @@
 
 #include <linux/gpio.h>
 #include <linux/ioctl.h>
+#include <linux/delay.h>
 #define CPS_FPGA_ACCESS_WORD		0	///< 16bit Access mode
 #define CPS_FPGA_ACCESS_BYTE_HIGH	1	///< 8bit Access mode( high )
 #define CPS_FPGA_ACCESS_BYTE_LOW	2	///< 8bit Access mode( low )
@@ -60,20 +61,51 @@ int cps_fpga_access( int mode )
 {
 	int ret = 0;
 
+	int byte_low = 0;
+	int byte_high = 0;
+
+	int check_low = 0;
+	int check_high = 0;
+
+	int panic_count = 0;
+
 	switch( mode ){
 	case CPS_FPGA_ACCESS_WORD : 
-			ret = gpio_direction_output( CPS_FPGA_BYTE_LOW, 0 );
-			ret = gpio_direction_output( CPS_FPGA_BYTE_HIGH, 0 );
-			break;
+		byte_low = 0;
+		byte_high = 0;
+		break;
 	case CPS_FPGA_ACCESS_BYTE_LOW:
-			ret = gpio_direction_output( CPS_FPGA_BYTE_LOW, 1 );
-			ret = gpio_direction_output( CPS_FPGA_BYTE_HIGH, 0 );
-			break;
+		byte_low = 1;
+		byte_high = 0;
+		break;
 	case CPS_FPGA_ACCESS_BYTE_HIGH:
-			ret = gpio_direction_output( CPS_FPGA_BYTE_LOW, 0 );
-			ret = gpio_direction_output( CPS_FPGA_BYTE_HIGH, 1 );
-			break;
+		byte_low = 0;
+		byte_high = 1;
+		break;
 	}
+
+	do{
+
+		ret = gpio_direction_output( CPS_FPGA_BYTE_LOW, byte_low );
+		ret = gpio_direction_output( CPS_FPGA_BYTE_HIGH, byte_high );
+
+		check_low = gpio_get_value( CPS_FPGA_BYTE_LOW );
+		check_high = gpio_get_value( CPS_FPGA_BYTE_HIGH );
+
+		/* tested output kernel panic code */
+		// check_low = gpio_direction_input( CPS_FPGA_BYTE_LOW );
+		// check_high = gpio_direction_input( CPS_FPGA_BYTE_HIGH );
+
+		if( panic_count < 1000 ){
+			panic_count ++;
+		}else{
+			pr_crit("byte low %x high %x : check low %x high %x access count : %d \n",byte_low, byte_high, check_low, check_high, panic_count );
+			panic("cps_driver : Hang up gpio byte high-low accesses.\n");
+		}
+		
+	}while( check_low != byte_low || check_high != byte_high );
+
+	udelay( 1000 );
 
 	return ret;
 

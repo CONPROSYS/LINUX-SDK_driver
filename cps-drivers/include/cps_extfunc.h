@@ -4,6 +4,11 @@ extern void contec_cps_micro_delay_sleep(unsigned long usec , unsigned int isUse
 extern void contec_cps_micro_sleep(unsigned long usec);
 extern void contec_cps_micro_delay(unsigned long usec);
 
+extern void contec_mcs341_inpb(unsigned int addr, unsigned char *valb );
+extern void contec_mcs341_outb(unsigned int addr, unsigned char valb );
+extern void contec_mcs341_inpw(unsigned int addr, unsigned short *valw );
+extern void contec_mcs341_outw(unsigned int addr, unsigned short valw );
+
 extern unsigned char contec_mcs341_controller_cpsDevicesInit(void);
 extern unsigned char contec_mcs341_device_FindCategory( int *startIndex,int CategoryNum );
 extern unsigned char contec_mcs341_device_IsCategory( int targetDevNum ,int CategoryNum );
