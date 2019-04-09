@@ -43,7 +43,7 @@
 #endif
 
 
-#define DRV_VERSION	"0.9.6"
+#define DRV_VERSION	"1.0.0"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Counter I/O driver");
@@ -270,14 +270,14 @@ void cpscnt_32xxI_allocate_list( unsigned int node, unsigned int max_ch ){
 void cpscnt_32xxI_free_list_of_device( unsigned int node ){
 
 	PCPSCNT_32XXI_DATA cnt_32xxi_data, next;
-	unsigned int cnt;
+//	unsigned int cnt;
 
 	list_for_each_entry_safe( cnt_32xxi_data, next, &cpscnt_32xxI_head, list ){
 		if( cnt_32xxi_data->node == node || node == 0xFFFF ){
 			list_del( &cnt_32xxi_data->list );
 
-			for(cnt = 0; cnt < cnt_32xxi_data->max_ch; cnt ++ )
-				kfree( cnt_32xxi_data->data );
+			//for(cnt = 0; cnt < cnt_32xxi_data->max_ch; cnt ++ )
+			kfree( cnt_32xxi_data->data );
 
 			kfree( cnt_32xxi_data );
 		}
@@ -1141,10 +1141,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	PCPSCNT_DRV_FILE dev = filp->private_data;
 	unsigned char valb = 0;
 	unsigned long valdw = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 
-	unsigned long baseAddr = (unsigned long)dev->baseAddr;
-	PCPSCNT_32XXI_DATA pData = (PCPSCNT_32XXI_DATA)dev->data.ChannelData;
+	unsigned long baseAddr = 0;
+	PCPSCNT_32XXI_DATA pData = (PCPSCNT_32XXI_DATA)NULL;
 
 	struct cpscnt_ioctl_arg ioc;
 	struct cpscnt_ioctl_string_arg ioc_str; // Ver.0.9.4
@@ -1156,6 +1156,8 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 		return -EFAULT;
 	}
 
+	baseAddr = (unsigned long)dev->baseAddr;
+	pData = (PCPSCNT_32XXI_DATA)dev->data.ChannelData;
 
 	switch( cmd ){
 

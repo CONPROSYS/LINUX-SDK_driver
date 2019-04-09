@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.6"
+#define DRV_VERSION	"1.0.7"
 
 /*
  * Configuration:
@@ -2835,6 +2835,7 @@ static int cpscom_ivr_settings(struct uart_8250_port *up)
 		if (!IVR) {
 			release_mem_region(map_ivr, 1 );
 			ret = -ENOMEM;
+			break;
 		}
 
 		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH);

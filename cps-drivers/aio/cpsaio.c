@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.2.1"
+#define DRV_VERSION	"1.2.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -457,10 +457,10 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 **/ 
 static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned int isEcu, unsigned int size, unsigned short wCommand , void *vData )
 {
-	unsigned long com_addr, dat_addr_l, dat_addr_u;
-	unsigned short data_l, data_u; 
-	unsigned short *tmpWordData;
-	unsigned long *tmpDWordData;
+	unsigned long com_addr = 0, dat_addr_l = 0, dat_addr_u = 0;
+	unsigned short data_l = 0, data_u = 0; 
+	unsigned short *tmpWordData = (unsigned short *)NULL;
+	unsigned long *tmpDWordData = (unsigned long *)NULL;
 
 //	if( (wCommand & CPS_AIO_COMMAND_MASK) == CPS_AIO_COMMAND_BASE_ECU ){
 	if( isEcu ){

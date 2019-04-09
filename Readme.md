@@ -49,15 +49,15 @@
 * cps-driver
     CPS-MCS341 Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt)
     * aio (Analog Input/Output)
-        * Version 1.2.1
+        * Version 1.2.2
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
-        * Version 1.0.6
+        * Version 1.0.7
     * cnt (Counter)
-        * Version 0.9.6
+        * Version 0.9.7
     * ssi (Sensor Input)
-        * Version 1.0.11
+        * Version 1.0.12
     * system (Base)
         * Version 1.1.3
     * io (iolib)
@@ -76,6 +76,16 @@
         * The iolib driver takes in the cps-iolib driver(Version 1.0.6). This Driver version is 2.0.0.
     * cps-iolib Ver 1.0.5 -> 1.0.6
         * This driver implement the Getting Version ioctl command.
+    * cpsaio Ver.1.2.1 -> 1.2.2
+        * Fixed.The cpsaio_command initialize local values.[Result flow analizing.]
+    * cpscnt Ver.0.9.7 -> 1.0.0
+        * Fixed.The cpscnt_32xxI_free_list_of_device duplicate kfree.[Result flow analizing.]
+        * Fixed.The cpscnt_ioctl is the null checking after dev->baseAddr and dev->data.ChannelData are setting.[Result flow analizing.]
+    * cpscom Ver.1.0.6 -> 1.0.7
+        * Fixed. The cpscom_ivr_settings is breaking IVR equals NULL.[Result flow analizing.]
+    * cpsssi Ver 1.0.11 -> 1.0.12
+        * Fixed. The cpsssi_command initialize local values.[Result flow analizing.]
+        * Fixed. The cpsssi_ioctl is the null checking after dev->data.ChannelData are setting.[Result flow analizing.]
 * Ver.1.4.1.0
     * cpsaio Ver.1.2.0 -> 1.2.1
         * This driver addes the usual stop command with Analog Input Modules.
