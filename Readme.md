@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.4.1.0 (2019/03/14)
+* Version : 1.4.2.0 (2019/04/09)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -59,14 +59,23 @@
     * ssi (Sensor Input)
         * Version 1.0.11
     * system (Base)
-        * Version 1.1.2
+        * Version 1.1.3
+    * io (iolib)
+        * Version 2.0.0        
     * spi/dio (Digital Input/Output)
 
 * cps-iolib 
-    CPS-MCS341 I/O Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt)
-
-
+    * CPS-MCS341 I/O Driver Modules[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt)
+        * version 1.0.6
+    > Caution : When this driver is loading, cps-driver can not run. 
 ## Change logs
+
+* Ver.1.4.2.0
+    * cps-driver Ver.1.1.2 -> 1.1.3
+        * Fixed. When cps-driver and cps-iolib are accessing devices, the process gets grabled data.
+        * The iolib driver takes in the cps-iolib driver(Version 1.0.6). This Driver version is 2.0.0.
+    * cps-iolib Ver 1.0.5 -> 1.0.6
+        * This driver implement the Getting Version ioctl command.
 * Ver.1.4.1.0
     * cpsaio Ver.1.2.0 -> 1.2.1
         * This driver addes the usual stop command with Analog Input Modules.

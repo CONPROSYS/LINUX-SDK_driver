@@ -105,8 +105,6 @@ int cps_fpga_access( int mode )
 		
 	}while( check_low != byte_low || check_high != byte_high );
 
-	udelay( 1000 );
-
 	return ret;
 
 }
