@@ -740,7 +740,7 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	unsigned char *valb;
 
 	/* command */
-	cps_common_outb( BaseAddr + OFFSET_CNT_ADDRESS_COMMAND , wCommand );
+	contec_mcs341_outb( BaseAddr + OFFSET_CNT_ADDRESS_COMMAND , wCommand );
 	DEBUG_CPSCNT_COMMAND(KERN_INFO"Com:%x hex \n", wCommand );
 	/* data */
 	switch( isReadWrite ){
@@ -748,7 +748,7 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		DEBUG_CPSCNT_COMMAND(KERN_INFO"<READ>\n");
 	
 		for( cnt = 0; cnt < size; cnt ++ ){
-			cps_common_inpb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , &dat[cnt] );
+			contec_mcs341_inpb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , &dat[cnt] );
 			DEBUG_CPSCNT_COMMAND(KERN_INFO"   +%d: %x hex", cnt, dat[cnt]);
 		}
 
@@ -788,12 +788,12 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		for( cnt = 0; cnt < size; cnt ++ ){
 			DEBUG_CPSCNT_COMMAND(KERN_INFO"   +%d: %x hex", cnt, dat[cnt]);
 			// DataWrite UnLock
-			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_UNLOCK );
+			contec_mcs341_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_UNLOCK );
 
-			cps_common_outb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , dat[cnt] );
+			contec_mcs341_outb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , dat[cnt] );
 
 			// DataWrite Lock
-			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_LOCK );
+			contec_mcs341_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_LOCK );
 
 		}
 		break;

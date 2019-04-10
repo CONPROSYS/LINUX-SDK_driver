@@ -42,7 +42,7 @@
 
 #endif
 
-#define DRV_VERSION	"1.0.4"
+#define DRV_VERSION	"1.0.5"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -80,7 +80,7 @@ static	int *notFirstOpenFlg = NULL;		// Ver.1.0.0 segmentation fault暫定対策
 */
 /// @{
 #if 0
-#define DEBUG_CPSDIO_OPEN(fmt...)	printk(fmt)
+#define DEBUG_CPSDIO_OPEN(fmt...)	pr_info(fmt)
 #else
 #define DEBUG_CPSDIO_OPEN(fmt...)	do { } while (0)
 #endif
@@ -92,7 +92,7 @@ static	int *notFirstOpenFlg = NULL;		// Ver.1.0.0 segmentation fault暫定対策
 #endif
 
 #if 0
-#define DEBUG_CPSDIO_INTERRUPT_CHECK(fmt...)	printk(fmt)
+#define DEBUG_CPSDIO_INTERRUPT_CHECK(fmt...)	pr_info(fmt)
 #else
 #define DEBUG_CPSDIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
 #endif
@@ -218,6 +218,23 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 
 #include "cpsdio_devdata.h"
 
+
+/**
+	@~English
+	@brief This function get Digital Input Data.
+	@param BaseAddr : Base Address
+	@param port : Port Number
+	@param val : value
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力のデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param port : ポート番号
+	@param val : 値
+	@return 成功 : 0
+**/
+
+
 /**
 	@~English
 	@brief This function get Digital Input Data.
@@ -234,7 +251,8 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 **/
 static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned int port, unsigned char *val )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + port + OFFSET_INPUT0_CPS_DIO_0808 ) , val );
+
+	contec_mcs341_inpb( (unsigned long)( BaseAddr + port + OFFSET_INPUT0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
@@ -254,7 +272,7 @@ static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned int port
 **/
 static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned int port, unsigned char *val )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
+	contec_mcs341_inpb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
@@ -274,7 +292,7 @@ static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned in
 **/
 static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned int port, unsigned char val )
 {
-	cps_common_outb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
+	contec_mcs341_outb( (unsigned long)( BaseAddr + port + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
@@ -292,7 +310,7 @@ static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned int po
 **/
 static long cpsdio_set_internal_power_supply( unsigned long BaseAddr, unsigned char isOn )
 {
-	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
+	contec_mcs341_outb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
 	return 0;
 }
 
@@ -310,7 +328,7 @@ static long cpsdio_set_internal_power_supply( unsigned long BaseAddr, unsigned c
 **/
 static long cpsdio_get_internal_power_supply( unsigned long BaseAddr, unsigned char *isOn )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
+	contec_mcs341_inpb( (unsigned long)( BaseAddr + OFFSET_INTERNAL_POWER_SUPPLY_CPS_DIO_0808 ) , isOn );
 	return 0;
 }
 
@@ -328,7 +346,7 @@ static long cpsdio_get_internal_power_supply( unsigned long BaseAddr, unsigned c
 **/
 static long cpsdio_set_digital_filter( unsigned long BaseAddr, unsigned char filter )
 {
-	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
+	contec_mcs341_outb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
 	return 0;
 }
 
@@ -346,7 +364,7 @@ static long cpsdio_set_digital_filter( unsigned long BaseAddr, unsigned char fil
 **/
 static long cpsdio_get_digital_filter( unsigned long BaseAddr, unsigned char *filter )
 {
-	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
+	contec_mcs341_inpb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
 	return 0;
 }
 
@@ -364,7 +382,7 @@ static long cpsdio_get_digital_filter( unsigned long BaseAddr, unsigned char *fi
 **/
 static long cpsdio_read_interrupt_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , (unsigned short*) wStatus );
+	contec_mcs341_inpw( (unsigned long)( BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , (unsigned short*) wStatus );
 	return 0;
 }
 
@@ -382,7 +400,7 @@ static long cpsdio_read_interrupt_status( unsigned long BaseAddr, unsigned short
 **/
 static long cpsdio_write_interrupt_mask( unsigned long BaseAddr, unsigned short wStatus )
 {
-	cps_common_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , wStatus );
+	contec_mcs341_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
@@ -400,7 +418,7 @@ static long cpsdio_write_interrupt_mask( unsigned long BaseAddr, unsigned short 
 **/
 static long cpsdio_set_interrupt_edge( unsigned long BaseAddr, unsigned short wStatus )
 {
-	cps_common_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
+	contec_mcs341_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
@@ -418,7 +436,7 @@ static long cpsdio_set_interrupt_edge( unsigned long BaseAddr, unsigned short wS
 **/
 static long cpsdio_get_interrupt_edge( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
+	contec_mcs341_inpw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
@@ -507,14 +525,14 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 	
 	// Ver.0.9.5 Don't insert interrupt "xx callbacks suppressed" by IRQ_NONE.
 	if( !dev ){
-		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"This interrupt is not CONPROSYS DIO Device.");
+		DEBUG_CPSDIO_INTERRUPT_CHECK("This interrupt is not CONPROSYS DIO Device.");
 		goto END_OF_INTERRUPT_CPSDIO;
 	}
 
-	DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- isr_func: isDio=%u\n", contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) );
+	DEBUG_CPSDIO_INTERRUPT_CHECK("--- isr_func: isDio=%u\n", contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) );
 
 	if( !contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) ){
-		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- IRQ_NONE\n");
+		DEBUG_CPSDIO_INTERRUPT_CHECK("--- IRQ_NONE\n");
 		goto END_OF_INTERRUPT_CPSDIO;
 	}
 
@@ -523,7 +541,7 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 	cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
 
 	if( !wStatus ){
-		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- wStatus = 0 IRQ_NONE\n");
+		DEBUG_CPSDIO_INTERRUPT_CHECK("--- wStatus = 0 IRQ_NONE\n");
 		goto END_OF_INTERRUPT_SPIN_UNLOCK_CPSDIO;
 	}
 
@@ -534,7 +552,7 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 			DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (1): wStatus=%02X\n", 
 							wStatus);
 			send_sig( SIGUSR2, dev->int_callback, 1 );
-			DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (2): wStatus=%02X\n",
+			DEBUG_CPSDIO_INTERRUPT_CHECK("--- send_sig (2): wStatus=%02X\n",
 							wStatus);
 	}
 
@@ -581,7 +599,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	memset( &ioc_str, 0 , sizeof(ioc_str) );// Ver.1.0.2
 
 	if ( dev == (PCPSDIO_DRV_FILE)NULL ){
-		DEBUG_CPSDIO_IOCTL(KERN_INFO"CPSDIO_DRV_FILE NULL POINTER.");
+		DEBUG_CPSDIO_IOCTL("CPSDIO_DRV_FILE NULL POINTER.");
 		return -EFAULT;
 	}
 	switch( cmd ){
@@ -758,7 +776,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
-					DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_INT_EGDE: val=%02X\n", valw);
+					DEBUG_CPSDIO_INTERRUPT_CHECK("--- SET_INT_EGDE: val=%02X\n", valw);
 					cpsdio_set_interrupt_edge( (unsigned long)dev->baseAddr , valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -834,7 +852,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 ///////////////////////// debug
 
 ///////////////////////// debug
-						DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_CALLBACK_PROCESS(get_pid_task): val=%08X, int_callback=%08lX\n", 
+						DEBUG_CPSDIO_INTERRUPT_CHECK("--- SET_CALLBACK_PROCESS(get_pid_task): val=%08X, int_callback=%08lX\n", 
 							ioc.val,
 							(unsigned long)dev->int_callback);
 ///////////////////////// debug
@@ -893,12 +911,12 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 
 	nodeNo = iminor( inode );// Ver.1.0.0 
 
-	DEBUG_CPSDIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
+	DEBUG_CPSDIO_OPEN("node %d\n",iminor( inode ) );
 
 	if (notFirstOpenFlg[nodeNo]) {		// Ver.1.0.0 初回オープンでなければ（segmentation fault暫定対策）
 		if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
 
-			DEBUG_CPSDIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+			DEBUG_CPSDIO_OPEN("inode->private %x\n",(int)inode->i_private );
 
 			dev = (PCPSDIO_DRV_FILE)inode->i_private;
 			filp->private_data =  (PCPSDIO_DRV_FILE)dev;
@@ -912,7 +930,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 		}
 	}
 
-	DEBUG_CPSDIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+	DEBUG_CPSDIO_OPEN("inode->private %x\n",(int)inode->i_private );
 
 	filp->private_data = (PCPSDIO_DRV_FILE)kzalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
 	if( filp->private_data == (PCPSDIO_DRV_FILE)NULL ){
@@ -941,7 +959,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	do{
 		if( cps_dio_data[cnt].ProductNumber == -1 ) {
 			iRet = -EFAULT;
-			DEBUG_CPSDIO_OPEN(KERN_INFO"product_id:%x", product_id);
+			DEBUG_CPSDIO_OPEN("product_id:%x", product_id);
 			goto NOT_FOUND_DIO_PRODUCT;
 		}
 		if( cps_dio_data[cnt].ProductNumber == product_id ){

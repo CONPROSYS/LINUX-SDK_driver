@@ -132,7 +132,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 				return -EFAULT;	
 
 			read_lock(&dev->lock);
-			contec_mcs341_inpw( ioc.addr, &valw );
+			contec_mcs341_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
 			//cps_common_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
 			read_unlock(&dev->lock);
 
@@ -157,7 +157,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 
 			write_lock(&dev->lock);
 			valw = ioc.val;
-			contec_mcs341_outw( ioc.addr, valw );
+			contec_mcs341_outw( (unsigned long)(map_baseaddr + ioc.addr), valw );
 			//cps_common_outw( (unsigned long)(map_baseaddr + ioc.addr), valw );
 			write_unlock(&dev->lock);
 
@@ -175,7 +175,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 				return -EFAULT;	
 
 			read_lock(&dev->lock);
-			contec_mcs341_inpb( ioc.addr, &valb );
+			contec_mcs341_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
 			//cps_common_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
 			read_unlock(&dev->lock);
 
@@ -203,7 +203,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 
 			write_lock(&dev->lock);
 			valb = (unsigned char)ioc.val;
-			contec_mcs341_outb( ioc.addr, valb );
+			contec_mcs341_outb( (unsigned long)(map_baseaddr + ioc.addr), valb );
 			write_unlock(&dev->lock);
 
 			break;
@@ -346,7 +346,7 @@ static int cpsio_init(void)
 	}
 
 	/* I/O Mapping */
-	map_baseaddr = cps_common_mem_alloc( 0x08000100, (CPS_DEVICE_MAX_NUM * 0x100), "cps-iolib-device", CPS_COMMON_MEM_NONREGION );
+	map_baseaddr = cps_common_mem_alloc( 0x08000000, (CPS_DEVICE_MAX_NUM * 0x100), "cps-iolib-device", CPS_COMMON_MEM_NONREGION );
 
 	if( !map_baseaddr ){
 		printk(KERN_INFO "cpsio : MEMORY cannot allocation. [%lx]", (unsigned long)map_baseaddr );
@@ -371,7 +371,7 @@ static void cpsio_exit(void)
 	dev_t dev = MKDEV(cpsio_major , 0 );
 
 	/* I/O UnMapping */
-	cps_common_mem_release( 0x08000100,(CPS_DEVICE_MAX_NUM * 0x100), map_baseaddr, CPS_COMMON_MEM_NONREGION );
+	cps_common_mem_release( 0x08000000,(CPS_DEVICE_MAX_NUM * 0x100), map_baseaddr, CPS_COMMON_MEM_NONREGION );
 
 	cpsio_dev = MKDEV( cpsio_major , cpsio_minor );
 	device_destroy( cpsio_class, cpsio_dev );

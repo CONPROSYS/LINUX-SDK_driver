@@ -290,7 +290,7 @@ void cpsssi_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 **/
 static long cpsssi_read_ssi_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ) , wStatus );
+	contec_mcs341_inpw( (unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ) , wStatus );
 	DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ), *wStatus );
 	return 0;
 }
@@ -327,15 +327,17 @@ static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 
 	/* command */
-	cps_common_outw( com_addr , wCommand );
+	contec_mcs341_outw( com_addr , wCommand );
 	DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%x\n",com_addr, wCommand );
 	/* data */
 	switch( isReadWrite ){
 	case CPS_SSI_COMMAND_READ :
 		DEBUG_CPSSSI_COMMAND(KERN_INFO"<READ>\n");
-		cps_common_inpw(  dat_addr_l , &data_l  );
-		if( size == 4 ) cps_common_inpw(  dat_addr_u , &data_u  );
-		else data_u = 0;
+		contec_mcs341_inpw(  dat_addr_l , &data_l  );
+		if( size == 4 )
+			contec_mcs341_inpw(  dat_addr_u , &data_u  );
+		else
+			data_u = 0;
 
 
 
@@ -368,11 +370,11 @@ static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 			break;
 		}
 
-		cps_common_outw( dat_addr_l , data_l );
+		contec_mcs341_outw( dat_addr_l , data_l );
 		DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
 
 		if( size == 4 ){
-			cps_common_outw( dat_addr_u , data_u );
+			contec_mcs341_outw( dat_addr_u , data_u );
 			DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%04x\n", dat_addr_u, data_u);
 		}
 		break;

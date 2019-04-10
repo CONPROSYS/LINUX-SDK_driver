@@ -4,10 +4,10 @@ extern void contec_cps_micro_delay_sleep(unsigned long usec , unsigned int isUse
 extern void contec_cps_micro_sleep(unsigned long usec);
 extern void contec_cps_micro_delay(unsigned long usec);
 
-extern void contec_mcs341_inpb(unsigned int addr, unsigned char *valb );
-extern void contec_mcs341_outb(unsigned int addr, unsigned char valb );
-extern void contec_mcs341_inpw(unsigned int addr, unsigned short *valw );
-extern void contec_mcs341_outw(unsigned int addr, unsigned short valw );
+extern void contec_mcs341_inpb(unsigned long addr, unsigned char *valb );
+extern void contec_mcs341_outb(unsigned long addr, unsigned char valb );
+extern void contec_mcs341_inpw(unsigned long addr, unsigned short *valw );
+extern void contec_mcs341_outw(unsigned long addr, unsigned short valw );
 
 extern unsigned char contec_mcs341_controller_cpsDevicesInit(void);
 extern unsigned char contec_mcs341_device_FindCategory( int *startIndex,int CategoryNum );
@@ -28,10 +28,10 @@ extern unsigned short contec_mcs341_device_extension_value_set( int dev, int cat
 extern unsigned short contec_mcs341_device_extension_value_get( int dev, int cate, int num );
 extern unsigned short contec_mcs341_device_extension_value_all_clear( int dev, int cate );
 
-extern void contec_mcs341_device_outb(unsigned int dev, unsigned int offset, unsigned char valb );
-extern void contec_mcs341_device_inpb(unsigned int dev, unsigned int offset, unsigned char *valb );
-extern void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, unsigned short valw );
-extern void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, unsigned short *valw );
+extern void contec_mcs341_device_common_outb(unsigned int dev, unsigned int offset, unsigned char valb );
+extern void contec_mcs341_device_common_inpb(unsigned int dev, unsigned int offset, unsigned char *valb );
+extern void contec_mcs341_device_common_outw(unsigned int dev, unsigned int offset, unsigned short valw );
+extern void contec_mcs341_device_common_inpw(unsigned int dev, unsigned int offset, unsigned short *valw );
 extern unsigned char contec_mcs341_device_board_version_get( int dev );
 extern unsigned char contec_mcs341_device_fpga_version_get( int dev );
 
