@@ -32,7 +32,8 @@ addons:
 
     # Commands to prepare for build_command
     # ** likely specific to your build **
-    build_command_prepend: 
+    # build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc-4.7 --comptype gcc --template;cov-configure --comptype gcc --compiler arm-linux-gnueabi-gcc-4.8 --template"
+    build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc-4.7 --comptype gcc --template"
 
     # The command that will be added as an argument to "cov-build" to compile your project for analysis,
     # ** likely specific to your build **
