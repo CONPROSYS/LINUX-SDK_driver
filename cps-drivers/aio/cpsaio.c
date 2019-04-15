@@ -2352,11 +2352,13 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					spin_lock_irqsave(&dev->lock, flags);
+					//spin_lock_irqsave(&dev->lock, flags);
+					spin_lock(&dev->lock);
 					valw = (unsigned short) d_ioc.val;
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT OUTPUT: [%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
 					contec_mcs341_outw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , valw );
-					spin_unlock_irqrestore(&dev->lock, flags);
+					//spin_unlock_irqrestore(&dev->lock, flags);
+					spin_unlock(&dev->lock);
 
 					break;
 
@@ -2367,14 +2369,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					spin_lock_irqsave(&dev->lock, flags);
-					
+					//spin_lock_irqsave(&dev->lock, flags);
+					spin_lock(&dev->lock);
 					contec_mcs341_inpw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , &valw );
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT INPUT:[%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
 					d_ioc.val = (unsigned long) valw;
 
-					spin_unlock_irqrestore(&dev->lock, flags);
-
+					//spin_unlock_irqrestore(&dev->lock, flags);
+					spin_unlock(&dev->lock);
 					if( copy_to_user( (int __user *)arg, &d_ioc, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
