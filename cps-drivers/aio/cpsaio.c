@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.2.1"
+#define DRV_VERSION	"1.2.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -330,7 +330,7 @@ int __cpsaio_find_analog_device( int node )
 static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO );
-	cps_common_inpw( ulAddr , val );
+	contec_mcs341_inpw( ulAddr , val );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_data()[%lx]=%x\n",ulAddr, *val );
 	return 0;
 }
@@ -351,7 +351,7 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_write_ao_data()[%lx]=%x\n",ulAddr, val );
-	cps_common_outw( ulAddr, val );
+	contec_mcs341_outw( ulAddr, val );
 	return 0;
 }
 
@@ -370,7 +370,7 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO );
-	cps_common_inpw( ulAddr , wStatus );
+	contec_mcs341_inpw( ulAddr , wStatus );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_status()[%lx]=%x\n",ulAddr, *wStatus );
 	return 0;
 }
@@ -390,7 +390,7 @@ static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStat
 static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO );
-	cps_common_inpw( ulAddr , wStatus );
+	contec_mcs341_inpw( ulAddr , wStatus );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ao_status()[%lx]=%x\n",ulAddr, *wStatus );
 	return 0;
 }
@@ -411,7 +411,7 @@ static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStat
 static long cpsaio_read_interrupt_status( unsigned long BaseAddr, unsigned short *wIntStatus )
 {
 	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_ECU_INTERRUPT_CHECK_CPS_AIO );
-	cps_common_inpw( ulAddr , wIntStatus );
+	contec_mcs341_inpw( ulAddr , wIntStatus );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wIntStatus );
 	return 0;
 }
@@ -429,7 +429,7 @@ static long cpsaio_read_interrupt_status( unsigned long BaseAddr, unsigned short
 **/ 
 static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ) , wStatus );
+	contec_mcs341_inpw( (unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ) , wStatus );
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_mem_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ), *wStatus );
 	return 0;
 }
@@ -457,10 +457,10 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 **/ 
 static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned int isEcu, unsigned int size, unsigned short wCommand , void *vData )
 {
-	unsigned long com_addr, dat_addr_l, dat_addr_u;
-	unsigned short data_l, data_u; 
-	unsigned short *tmpWordData;
-	unsigned long *tmpDWordData;
+	unsigned long com_addr = 0, dat_addr_l = 0, dat_addr_u = 0;
+	unsigned short data_l = 0, data_u = 0; 
+	unsigned short *tmpWordData = (unsigned short *)NULL;
+	unsigned long *tmpDWordData = (unsigned long *)NULL;
 
 //	if( (wCommand & CPS_AIO_COMMAND_MASK) == CPS_AIO_COMMAND_BASE_ECU ){
 	if( isEcu ){
@@ -476,14 +476,14 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 	/* command */
 	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%x\n",com_addr, wCommand );
-	cps_common_outw( com_addr , wCommand );
+	contec_mcs341_outw( com_addr , wCommand );
 	//DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",com_addr, wCommand );
 	/* data */
 	switch( isReadWrite ){
 	case CPS_AIO_COMMAND_READ :
 		DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): <READ>\n");
-		cps_common_inpw(  dat_addr_l , &data_l  );
-		if( size == 4 ) cps_common_inpw(  dat_addr_u , &data_u  );
+		contec_mcs341_inpw(  dat_addr_l , &data_l  );
+		if( size == 4 ) contec_mcs341_inpw(  dat_addr_u , &data_u  );
 		else data_u = 0;
 
 
@@ -518,18 +518,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		}
 
 		// DataWrite UnLock
-		cps_common_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_UNLOCK );
+		contec_mcs341_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_UNLOCK );
 
-		cps_common_outw( dat_addr_l , data_l );
+		contec_mcs341_outw( dat_addr_l , data_l );
 		DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n",dat_addr_l, data_l);
 
 		if( size == 4 ){
-			cps_common_outw( dat_addr_u , data_u );
+			contec_mcs341_outw( dat_addr_u , data_u );
 			DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n", dat_addr_u, data_u);
 		}
 
 		// DataWrite Lock
-		cps_common_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_LOCK );
+		contec_mcs341_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_LOCK );
 
 
 		break;
@@ -1367,7 +1367,8 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					*/
 
 					// Set Unusual stop On
-					CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP((unsigned long)dev->baseAddr , (CPS_AIO_ECU_AI_UNU_STP_AI_OVERFLOW | CPS_AIO_ECU_AI_UNU_STP_AI_CLK_ERR) );
+					valdw = (CPS_AIO_ECU_AI_UNU_STP_AI_OVERFLOW | CPS_AIO_ECU_AI_UNU_STP_AI_CLK_ERR);
+					CPSAIO_COMMAND_ECU_AI_UNUSUAL_STOP((unsigned long)dev->baseAddr , &valdw );
 
 					CPSAIO_COMMAND_AI_OPEN( (unsigned long)dev->baseAddr );
 
@@ -1634,7 +1635,8 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 		case IOCTL_CPSAIO_START_AO:
 
 					// Set Unusual stop On
-					CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP((unsigned long)dev->baseAddr , CPS_AIO_ECU_AO_UNU_STP_AO_CLK_ERR );
+					valdw = CPS_AIO_ECU_AO_UNU_STP_AO_CLK_ERR;
+					CPSAIO_COMMAND_ECU_AO_UNUSUAL_STOP((unsigned long)dev->baseAddr , &valdw );
 
 					CPSAIO_COMMAND_AO_OPEN( (unsigned long)dev->baseAddr );
 					break;
@@ -2164,14 +2166,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite UnLock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_UNLOCK
 					);
 					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num,  valw );
 
 					// DataWrite Lock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_LOCK
 					);
@@ -2198,7 +2200,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite UnLock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_UNLOCK
 					);
@@ -2206,7 +2208,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num, &valw );
 
 					// DataWrite Lock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_LOCK
 					);
@@ -2246,7 +2248,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite UnLock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_UNLOCK
 					);
@@ -2254,7 +2256,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num,  valw );
 
 					// DataWrite Lock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_LOCK
 					);
@@ -2281,7 +2283,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite UnLock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_UNLOCK
 					);
@@ -2289,7 +2291,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num, &valw );
 
 					// DataWrite Lock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_LOCK
 					);
@@ -2320,7 +2322,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite UnLock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_UNLOCK
 					);
@@ -2333,7 +2335,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 //					spin_unlock_irqrestore(&dev->lock, flags);
 
 					// DataWrite Lock
-					cps_common_outw(
+					contec_mcs341_outw(
 							(unsigned long)(dev->baseAddr + OFFSET_COMMAND_DATALOCK_AIO)
 							, CPS_AIO_DATA_LOCK
 					);
@@ -2350,11 +2352,13 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					spin_lock_irqsave(&dev->lock, flags);
+					//spin_lock_irqsave(&dev->lock, flags);
+					spin_lock(&dev->lock);
 					valw = (unsigned short) d_ioc.val;
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT OUTPUT: [%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
-					cps_common_outw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , valw );
-					spin_unlock_irqrestore(&dev->lock, flags);
+					contec_mcs341_outw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , valw );
+					//spin_unlock_irqrestore(&dev->lock, flags);
+					spin_unlock(&dev->lock);
 
 					break;
 
@@ -2365,14 +2369,14 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &d_ioc, (int __user *)arg, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}
-					spin_lock_irqsave(&dev->lock, flags);
-					
-					cps_common_inpw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , &valw );
+					//spin_lock_irqsave(&dev->lock, flags);
+					spin_lock(&dev->lock);
+					contec_mcs341_inpw( (unsigned long)( dev->baseAddr + d_ioc.addr ) , &valw );
 					DEBUG_CPSAIO_COMMAND(KERN_INFO"DIRECT INPUT:[%lx]=%x\n",(unsigned long)( dev->baseAddr + d_ioc.addr ), valw );
 					d_ioc.val = (unsigned long) valw;
 
-					spin_unlock_irqrestore(&dev->lock, flags);
-
+					//spin_unlock_irqrestore(&dev->lock, flags);
+					spin_unlock(&dev->lock);
 					if( copy_to_user( (int __user *)arg, &d_ioc, sizeof(d_ioc) ) ){
 						return -EFAULT;
 					}

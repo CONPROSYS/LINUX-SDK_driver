@@ -1,6 +1,6 @@
 #!/bin/sh
 
-GLOBAL_MANUFACTURE_ID="0028"
+GLOBAL_MANUFACTURE_ID="0029"
 
 create_mcs341_driver_check(){
 MANUFACTURE_ID=$1
@@ -17,6 +17,7 @@ echo "CPS_AIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsaio.ko | grep version:| awk 'NR
 echo "CPS_COM_VERSION=\$(/sbin/modinfo '$PWD'/8250_cpscom.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo "CPS_SSI_VERSION=\$(/sbin/modinfo '$PWD'/cpsssi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo "CPS_CNT_VERSION=\$(/sbin/modinfo '$PWD'/cpscnt.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_IOLIB_VERSION=\$(/sbin/modinfo '$PWD'/cps-iolib.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo " " >> driver_version_check
 echo "echo \"-------- Driver Manufacture ID ------------------\"" >> driver_version_check
 echo "echo \"Manufacture ID : \$CPS_DRIVER_MANUFACTURE_ID \"" >> driver_version_check
@@ -27,6 +28,7 @@ echo "echo \"DIO driver (cpsdio) : \" \$CPS_DIO_VERSION" >> driver_version_check
 echo "echo \"AIO driver (cpsaio) : \" \$CPS_AIO_VERSION" >> driver_version_check
 echo "echo \"SSI driver (cpsssi) : \" \$CPS_SSI_VERSION" >> driver_version_check
 echo "echo \"CNT driver (cpscnt) : \" \$CPS_CNT_VERSION" >> driver_version_check
+echo "echo \"IOLIB driver (cps-iolib) : \" \$CPS_IOLIB_VERSION" >> driver_version_check
 echo "echo \"------------------------------------------------\"" >> driver_version_check
 
 chmod 755 driver_version_check

@@ -11,7 +11,7 @@ EXTRA_CFLAGS	:= -DDEBUG=0
 EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include
 
 ifeq "$(CPS_SDK_ROOTDIR)" ""
-#KERNELDIR ?= /lib/modules/$(shell uname -r)/build　##target kernel source path ( self build )
+#KERNELDIR ?= /lib/modules/$(shell uname -r)/build #target kernel source path ( self build )
 KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source path ( static path )
 CPS_DRIVER_REELASE_DIR:=../release/mcs341/
 else

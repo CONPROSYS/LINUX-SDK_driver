@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.6"
+#define DRV_VERSION	"1.0.7"
 
 /*
  * Configuration:
@@ -540,15 +540,17 @@ static unsigned int cpscom_serial_in(struct uart_port *p, int offset)
 #endif
 	offset = map_8250_in_reg(p, offset) << p->regshift;
 
-	if( (unsigned long)( p->membase + offset ) & 0x01 ) {
-		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH); // cps_common_io.h
-	}else{
-		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_LOW); // cps_common_io.h
-	}
+//	if( (unsigned long)( p->membase + offset ) & 0x01 ) {
+//		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH); // cps_common_io.h
+//	}else{
+//		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_LOW); // cps_common_io.h
+//	}
 #ifdef DEBUG_SERIAL_CEMARKING_TEST
-	valN[0] = readb( p->membase + offset );
+	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &valN[0] );
+	//valN[0] = readb( p->membase + offset );
 #else
-	val = readb(p->membase + offset);
+	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &val );
+	//val = readb(p->membase + offset);
 #endif
 
 #ifdef DEBUG_SERIAL_CEMARKING_TEST
@@ -567,9 +569,9 @@ static unsigned int cpscom_serial_in(struct uart_port *p, int offset)
 	dev = contec_mcs341_device_deviceNum_get( (unsigned long) p->mapbase );
 	ch = contec_mcs341_device_serial_channel_get( (unsigned long) p->mapbase );
 
-		DEBUG_IOPORT(KERN_INFO "[Read]<dev:%d Ch:%d> %s : %x(%c)\n", dev, ch, reg[offset], val, val);
+	DEBUG_IOPORT(KERN_INFO "[Read]<dev:%d Ch:%d> %s : %x(%c)\n", dev, ch, reg[offset], val, val);
 
-	cps_fpga_access(CPS_FPGA_ACCESS_WORD); // cps_common_io.h
+//	cps_fpga_access(CPS_FPGA_ACCESS_WORD); // cps_common_io.h
 	
 	return val;
 
@@ -589,12 +591,14 @@ static void cpscom_serial_out(struct uart_port *p, int offset, int value)
 #endif
 	offset = map_8250_out_reg(p, offset) << p->regshift;
 
-	if( (unsigned long)( p->membase + offset ) & 0x01 ) {
-		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH); // cps_common_io.h
-	}else{
-		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_LOW); // cps_common_io.h
-	}
-	writeb(value, p->membase + offset);
+//	if( (unsigned long)( p->membase + offset ) & 0x01 ) {
+//		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH); // cps_common_io.h
+//	}else{
+//		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_LOW); // cps_common_io.h
+//	}
+
+//	writeb(value, p->membase + offset);
+	contec_mcs341_outb( (unsigned long)(p->membase + offset), value );
 	dev = contec_mcs341_device_deviceNum_get( (unsigned long) p->mapbase );
 	ch = contec_mcs341_device_serial_channel_get( (unsigned long) p->mapbase );
 
@@ -2835,6 +2839,7 @@ static int cpscom_ivr_settings(struct uart_8250_port *up)
 		if (!IVR) {
 			release_mem_region(map_ivr, 1 );
 			ret = -ENOMEM;
+			break;
 		}
 
 		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH);
@@ -3799,13 +3804,13 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 	switch( buf[0] ){
 		case '0':
 		lora_power=0;
-		contec_mcs341_device_outw(devnum, addr1, valb1);
-		contec_mcs341_device_outw(devnum, addr2, valb2);
+		contec_mcs341_device_common_outw(devnum, addr1, valb1);
+		contec_mcs341_device_common_outw(devnum, addr2, valb2);
 		break;
 		case '1':
 		lora_power=1;
-		contec_mcs341_device_outw(devnum, addr1, valb1);
-		contec_mcs341_device_outw(devnum, addr2, valb3);		
+		contec_mcs341_device_common_outw(devnum, addr1, valb1);
+		contec_mcs341_device_common_outw(devnum, addr2, valb3);		
 		break;
 	}
 	return strlen(buf);
@@ -3920,8 +3925,8 @@ static int contec_mcs341_led0_status_store(struct device *dev, struct device_att
 
 	leds_status = (leds_status & ~0x03) | led_status;
 	
-	contec_mcs341_device_outw(devnum, addr1, valb1);
-	contec_mcs341_device_outw(devnum, addr2, leds_status);
+	contec_mcs341_device_common_outw(devnum, addr1, valb1);
+	contec_mcs341_device_common_outw(devnum, addr2, leds_status);
 
 	return strlen(buf);
 
@@ -3972,8 +3977,8 @@ static int contec_mcs341_led1_status_store(struct device *dev, struct device_att
 	
 	leds_status = ((leds_status & ~(0x03 << 2)) | led_status << 2);
 	
-	contec_mcs341_device_outw(devnum, addr1, valb1);
-	contec_mcs341_device_outw(devnum, addr2, leds_status);
+	contec_mcs341_device_common_outw(devnum, addr1, valb1);
+	contec_mcs341_device_common_outw(devnum, addr2, leds_status);
 	
 	return strlen(buf);
 
@@ -4024,8 +4029,8 @@ static int contec_mcs341_led2_status_store(struct device *dev, struct device_att
 	
 	leds_status = ((leds_status & ~(0x03 << 4)) | led_status << 4);
 	
-	contec_mcs341_device_outw(devnum, addr1, valb1);
-	contec_mcs341_device_outw(devnum, addr2, leds_status);
+	contec_mcs341_device_common_outw(devnum, addr1, valb1);
+	contec_mcs341_device_common_outw(devnum, addr2, leds_status);
 	
 	return strlen(buf);
 
@@ -4076,8 +4081,8 @@ static int contec_mcs341_led3_status_store(struct device *dev, struct device_att
 	
 	leds_status = ((leds_status & ~(0x03 << 6)) | led_status << 6);
 	
-	contec_mcs341_device_outw(devnum, addr1, valb1);
-	contec_mcs341_device_outw(devnum, addr2, leds_status);
+	contec_mcs341_device_common_outw(devnum, addr1, valb1);
+	contec_mcs341_device_common_outw(devnum, addr2, leds_status);
 
 	return strlen(buf);
 

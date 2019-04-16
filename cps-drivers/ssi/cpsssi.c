@@ -48,7 +48,7 @@
 
 #endif
 
-#define DRV_VERSION	"1.0.11"
+#define DRV_VERSION	"1.0.12"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -290,7 +290,7 @@ void cpsssi_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 **/
 static long cpsssi_read_ssi_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ) , wStatus );
+	contec_mcs341_inpw( (unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ) , wStatus );
 	DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_INPUT_STATUS_CPS_SSI ), *wStatus );
 	return 0;
 }
@@ -315,10 +315,10 @@ static long cpsssi_read_ssi_status( unsigned long BaseAddr, unsigned short *wSta
 **/
 static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned size, unsigned short wCommand , void *vData )
 {
-	unsigned long com_addr, dat_addr_l, dat_addr_u;
-	unsigned short data_l, data_u; 
-	unsigned short *tmpWordData;
-	unsigned long *tmpDWordData;
+	unsigned long com_addr = 0, dat_addr_l = 0, dat_addr_u = 0;
+	unsigned short data_l = 0, data_u = 0; 
+	unsigned short *tmpWordData = (unsigned short *)NULL;
+	unsigned long *tmpDWordData = (unsigned long *)NULL;
 
 
 	com_addr = (unsigned long)(BaseAddr + OFFSET_EXT_COMMAND_LOWER_CPS_SSI);
@@ -327,15 +327,17 @@ static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 
 	/* command */
-	cps_common_outw( com_addr , wCommand );
+	contec_mcs341_outw( com_addr , wCommand );
 	DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%x\n",com_addr, wCommand );
 	/* data */
 	switch( isReadWrite ){
 	case CPS_SSI_COMMAND_READ :
 		DEBUG_CPSSSI_COMMAND(KERN_INFO"<READ>\n");
-		cps_common_inpw(  dat_addr_l , &data_l  );
-		if( size == 4 ) cps_common_inpw(  dat_addr_u , &data_u  );
-		else data_u = 0;
+		contec_mcs341_inpw(  dat_addr_l , &data_l  );
+		if( size == 4 )
+			contec_mcs341_inpw(  dat_addr_u , &data_u  );
+		else
+			data_u = 0;
 
 
 
@@ -368,11 +370,11 @@ static long cpsssi_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 			break;
 		}
 
-		cps_common_outw( dat_addr_l , data_l );
+		contec_mcs341_outw( dat_addr_l , data_l );
 		DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
 
 		if( size == 4 ){
-			cps_common_outw( dat_addr_u , data_u );
+			contec_mcs341_outw( dat_addr_u , data_u );
 			DEBUG_CPSSSI_COMMAND(KERN_INFO"[%lx]=%04x\n", dat_addr_u, data_u);
 		}
 		break;
@@ -954,22 +956,25 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned int num = 0;
 	unsigned char valb = 0;
 	unsigned int cnt = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 	
 	struct cpsssi_ioctl_arg ioc;
 	struct cpsssi_ioctl_string_arg ioc_str; // Ver.1.0.8
 	struct cpsssi_direct_command_arg dc_ioc; // Ver 1.0.7
 
-	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
+	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)NULL;
 
 
 	memset( &ioc, 0 , sizeof(ioc) );
 	memset( &ioc_str, 0 , sizeof(ioc_str) ); // Ver.1.0.8
 	memset( &dc_ioc, 0 , sizeof(dc_ioc) );  // Ver 1.0.7
+
 	if ( dev == (PCPSSSI_DRV_FILE)NULL ){
 		DEBUG_CPSSSI_IOCTL(KERN_INFO"CPSSSI_DRV_FILE NULL POINTER.");
 		return -EFAULT;
 	}
+
+	pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
 
 	//memcpy(pData, dev->data.ChannelData, sizeof(CPSSSI_4P_CHANNEL_DATA) * dev->data.ssiChannel);
 
@@ -1315,7 +1320,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 **/ 
 static int cpsssi_open(struct inode *inode, struct file *filp )
 {
-	int ret;
+	int ret = 0;
 	PCPSSSI_DRV_FILE dev;
 	int cnt;
 	unsigned char __iomem *allocMem;
@@ -1392,10 +1397,10 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 
 	//IRQ Request
 	//ret = request_irq(AM335X_IRQ_NMI, cpsssi_isr_func, IRQF_SHARED, "cps-ssi-intr", dev);
-
-	if( ret ){
-		DEBUG_CPSSSI_OPEN(" request_irq failed.(%x) \n",ret);
-	}
+	//
+	//if( ret ){
+	//	DEBUG_CPSSSI_OPEN(" request_irq failed.(%x) \n",ret);
+	//}
 
 	// spin_lock initialize
 	spin_lock_init( &dev->lock );

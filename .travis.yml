@@ -12,6 +12,38 @@ dist:
 compiler:
   - gcc
 
+env:
+  global:
+    # COVERITY_SCAN_TOKEN
+    # ** specific to your project **
+    secure: "Yon+njOiEfbDoN+lw1t77Kh3ekWb/zMq947Mxm7Ty0D7UviMv5AqHNXBatzas2Ew9OMnd5II9tGR00sl99suh/t9pGoUvsaYK5eIUwVQ2q03Ad0I/CaIUGA4ZmRdujhYeQrzl5UHvrRMGphY4YIufioR/A3oHk2/fdjaLGuRUTZo8LuTu5cW7FEGhCm2DGqD/x3690p92eN0hjDb7CIojKTdZuzPMbyxmTVCQjh8Glbp2ghppRlJseG/m7epkVI9wNOJpdXditVMEF+9HExco4ML6CLmxcPlNNBDCFo6Gt4tP4d3T6642D9wLkw4sBMP0HqcKQJ+9WAvVdarbcFCzD7u3Qz63RKG+OgLtCHV0LhtzxsN4pw3JB+8YMrNgaNFQnGEulR3ukUhbTeqMrnPQEe8aroHdnc5xenxFvQ5bxJOBRaJkGZ/1sW1Mop+mqVkYbxi9hI+TioXGZZolnpGFJ+DiU1m+ul84i0W18B+TLy8gpHQTGRIGAvfL6Sn6fZpxdmbxz+z1sG/114LcrUsN6nBwkk9xVPjc6bRxcdDqULlpxU62qmVBrUZ7JIWOuMsela56cqzj9p6ilDA7ue69MNYSo98nOON77KTM6QiILyaAqbho5bS4gkCQuo++DcxFBzSiW2wzr/KWhjXgruNLz4SPZTibQCHKLjOvgifYvo="
+
+addons:
+  coverity_scan:
+    # GitHub project metadata
+    # ** specific to your project **
+    project:
+      name: "CONPROSYS/LINUX-SDK_driver"
+      version: "1.4.2.0"
+      description: "driver"
+
+    # Where email notification of build analysis results will be sent
+    notification_email: okamoto@contec.jp
+
+    # Commands to prepare for build_command
+    # ** likely specific to your build **
+    # build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc-4.7 --comptype gcc --template;cov-configure --comptype gcc --compiler arm-linux-gnueabi-gcc-4.8 --template"
+    build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc --comptype gcc --template"
+
+    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+    # ** likely specific to your build **
+    build_command: "make"
+
+    # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
+    # Take care in resource usage, and consider the build frequency allowances per
+    #   https://scan.coverity.com/faq#frequency
+    branch_pattern: "*"
+
 before_install:
   # apt-get install
   - sudo apt-get install -y gcc-4.7-arm-linux-gnueabi libncurses5-dev binutils-arm-linux-gnueabi 
@@ -21,7 +53,7 @@ before_install:
 
   # Download the kernel
   - git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
-  - export KERNELDIR=$PWD/build
+  - export CPS_KERNEL_DIR=$PWD/build
 
   # Download the library master branch
   - cd $TRAVIS_BUILD_DIR/../
@@ -29,22 +61,29 @@ before_install:
   - cd $TRAVIS_BUILD_DIR
   
   # export conprosys-sdk
-  - export CPS_SDK_ROOTDIR=$PWD
+  - export CPS_SDK_ROOTDIR=$TRAVIS_BUILD_DIR/../
   - export CPS_SDK_TARGET_NAME=CPS-MCS341-DSX.novlan
   - export CPS_SDK_PRODUCT_TYPE=CPS-MCS341-DSX
   - export CPS_SDK_LAN_TYPE=novlan
   - export CPS_SDK_INSTALL_FULL_DIR=$CPS_SDK_ROOT_DIR/target/CPS-MCS341-DSX.novlan
 
+  # install to use coverity scan
+  - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+
+
 before_script:
-  - cd $KERNELDIR
+  - cd $CPS_KERNEL_DIR
   - ls /usr/bin/arm* 
   - make distclean
   - make defconfig CPS-MCS341-DSX.novlan_defconfig
   - make prepare
   - cd ./scripts
-  - make -C $KERNELDIR M=`pwd` modules
-  - cd $TRAVIS_BUILD_DIR/
-  
+  - make -C $CPS_KERNEL_DIR M=`pwd` modules
+  - cd $TRAVIS_BUILD_DIR/../
+  - ln -s $TRAVIS_BUILD_DIR driver
+  - ln -s $CPS_KERNEL_DIR kernel
+  - cd $TRAVIS_BUILD_DIR
+ 
 script:
   - sudo make
   # - make release_copy

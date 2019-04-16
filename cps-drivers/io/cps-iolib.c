@@ -2,13 +2,13 @@
 	@file cps-iolib.c
 	@brief CONPROSYS IO-LIB Driver with CPS-MCS341.
 	@author Syunsuke Okamoto <okamoto@contec.jp>
-	@par Version 1.0.6
+	@par Version 2.0.0
 	@par Copyright 2015  CONTEC Co., Ltd.
 	@par License : GPL Ver.2
 **/
 /*
  *  cps-iolib Driver with CPS-MCS341.
- * Version 1.0.6
+ * Version 1.0.5
  *
  *  I/O Control CPS-MCS341 Series (only) Driver by CONTEC .
  *
@@ -42,11 +42,14 @@
 #include <linux/device.h>
 
 #include "cps_common_io.h"
+#include "cps.h"
+#include "cps_ids.h"
+#include "cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.6"
+#define DRV_VERSION	"2.0.0"
 
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("CONTEC I/O Driver for CPS-MCS341");
+MODULE_DESCRIPTION("CONTEC I/O Driver for CPS-MCS341 (implements cps-driver)");
 MODULE_AUTHOR("syunsuke okamoto");
 
 MODULE_VERSION(DRV_VERSION);
@@ -68,11 +71,15 @@ typedef struct cpsio_data{
 }CPSIO_DRV_FILE,*PCPSIO_DRV_FILE;
 
 /*!  @brief device count */
-static int cpsio_max_devs = 1;
+static int cpsio_devs = 1;
+/*! */
+static int cpsio_max_devs = 0;
 /*!  @brief driver major number */
 static int cpsio_major = 0;
 /*!  @brief driver minor number */
 static int cpsio_minor = 0;
+
+#define CPS_IO_MAX_AREAS ( (cpsio_max_devs + 1) * 0x100 )
 
 static struct cdev cpsio_cdev;
 static struct class *cpsio_class = NULL;
@@ -120,8 +127,13 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 				return -EFAULT;
 			}
+
+			if( ioc.addr >= CPS_IO_MAX_AREAS )
+				return -EFAULT;	
+
 			read_lock(&dev->lock);
-			cps_common_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
+			contec_mcs341_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
+			//cps_common_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
 			read_unlock(&dev->lock);
 
 			ioc.val = valw;
@@ -139,9 +151,14 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 				return -EFAULT;
 			}
+
+			if( ioc.addr >= CPS_IO_MAX_AREAS )
+				return -EFAULT;	
+
 			write_lock(&dev->lock);
 			valw = ioc.val;
-			cps_common_outw( (unsigned long)(map_baseaddr + ioc.addr), valw );
+			contec_mcs341_outw( (unsigned long)(map_baseaddr + ioc.addr), valw );
+			//cps_common_outw( (unsigned long)(map_baseaddr + ioc.addr), valw );
 			write_unlock(&dev->lock);
 
 			break;
@@ -153,8 +170,13 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 				return -EFAULT;
 			}
+
+			if( ioc.addr >= CPS_IO_MAX_AREAS )
+				return -EFAULT;	
+
 			read_lock(&dev->lock);
-			cps_common_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
+			contec_mcs341_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
+			//cps_common_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
 			read_unlock(&dev->lock);
 
 			ioc.val = (unsigned short) valb;
@@ -175,9 +197,13 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 				return -EFAULT;
 			}	
+
+			if( ioc.addr >= CPS_IO_MAX_AREAS )
+				return -EFAULT;							
+
 			write_lock(&dev->lock);
 			valb = (unsigned char)ioc.val;
-			cps_common_outb( (unsigned long)(map_baseaddr + ioc.addr), valb );
+			contec_mcs341_outb( (unsigned long)(map_baseaddr + ioc.addr), valb );
 			write_unlock(&dev->lock);
 
 			break;
@@ -196,7 +222,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 				return -EFAULT;
 			}
-			break;
+			break;					
 	}
 
 	return 0;
@@ -216,23 +242,10 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 **/
 static int cpsio_open(struct inode *inode, struct file *filp )
 {
-//	void __iomem *allocaddr = NULL;
-
-	inode->i_private = inode;
-	filp->private_data = filp;
-
-//	if( ref_count == 0 ) {
-		/* I/O Mapping */
-//		allocaddr = cps_common_mem_alloc( 0x08000000, 0x2100, "", CPS_COMMON_MEM_NONREGION );
-
-//		if( !allocaddr ){
-//			printk(KERN_INFO "cpsio : MEMORY cannot allocation. [%lx]", (unsigned long)map_baseaddr );
-//			return -ENOMEM;
-//		}else{
-//			map_baseaddr = allocaddr;
-//		}
-//	}
-
+	if( ref_count == 0 ){
+		inode->i_private = inode;
+		filp->private_data = filp;
+	}
 	ref_count ++;
 	return 0;
 }
@@ -251,11 +264,8 @@ static int cpsio_open(struct inode *inode, struct file *filp )
 **/
 static int cpsio_close(struct inode * inode, struct file *file ){
 
-
-	ref_count --;
-//	if( ref_count == 0){
-//		cps_common_mem_release( 0x08000000, 0x2100, map_baseaddr, CPS_COMMON_MEM_NONREGION );
-//	}
+	if( ref_count > 0)
+		ref_count --;
 	return 0;
 }
 
@@ -284,13 +294,18 @@ static int cpsio_init(void)
 	dev_t dev = MKDEV(cpsio_major , 0 );
 	int ret = 0;
 	int major = 0;
-	int cnt = 0;
 
 	struct device *devlp = NULL;
 
-	pr_info(" cps-iolib : <INIT> Version: %s \n", DRV_VERSION);
+	// CPS-MCS341 Device Init
+	contec_mcs341_controller_cpsDevicesInit();
 
-	ret = alloc_chrdev_region( &dev, 0, cpsio_max_devs, CPSIO_DRIVER_NAME );
+	// Get Device Number
+	cpsio_max_devs = contec_mcs341_controller_getDeviceNum();
+
+	printk(KERN_INFO " cps-iolib : <INIT> Version: %s \n", DRV_VERSION);
+
+	ret = alloc_chrdev_region( &dev, 0, cpsio_devs, CPSIO_DRIVER_NAME );
 
 	if( ret ){
 		printk(KERN_ERR " cps-iolib : <INIT> ERROR ALLOC CHARCTOR DEVICE \n");
@@ -304,7 +319,7 @@ static int cpsio_init(void)
 	ret = cdev_add( &cpsio_cdev, MKDEV(cpsio_major, cpsio_minor), 1 );
 
 	if( ret ){
-		unregister_chrdev_region( dev, cpsio_max_devs );
+		unregister_chrdev_region( dev, cpsio_devs );
 		printk(KERN_ERR " cps-iolib : <INIT> ERROR ADD CHARCTOR DEVICE \n");
 		return ret;
 	}
@@ -313,36 +328,25 @@ static int cpsio_init(void)
 
 	if( IS_ERR(cpsio_class) ){
 		cdev_del( &cpsio_cdev );
-		unregister_chrdev_region( dev, cpsio_max_devs );
+		unregister_chrdev_region( dev, cpsio_devs );
 		printk(KERN_ERR " cps-iolib : <INIT> ERROR ADD CHARCTOR DEVICE \n");
 		return PTR_ERR(cpsio_class);
 	}
 
-	ret = cps_fpga_init();
+	cpsio_dev = MKDEV( cpsio_major, cpsio_minor );
 
-	if( ret ){
+	devlp = device_create(
+		cpsio_class, NULL, cpsio_dev, NULL, CPSIO_DRIVER_NAME"%d", cpsio_minor);
+
+	if( IS_ERR(devlp) ){
 		cdev_del( &cpsio_cdev );
-		unregister_chrdev_region( dev, cpsio_max_devs );
-		printk(KERN_ERR " cps-iolib : <INIT> ERROR FPGA INIT \n");
-		return ret;
-	}	
-
-	for( cnt = cpsio_minor; cnt < ( cpsio_minor + cpsio_max_devs ) ; cnt ++){
-		cpsio_dev = MKDEV( cpsio_major, cnt );
-
-		devlp = device_create(
-			cpsio_class, NULL, cpsio_dev, NULL, CPSIO_DRIVER_NAME"%d", cnt);
-
-		if( IS_ERR(devlp) ){
-			cdev_del( &cpsio_cdev );
-			unregister_chrdev_region( dev, cpsio_max_devs );
-			printk(KERN_ERR " cps-iolib : <INIT> ERROR ADD CHARCTOR DEVICE \n");
-			return PTR_ERR(devlp);
-		}
+		unregister_chrdev_region( dev, cpsio_devs );
+		printk(KERN_ERR " cps-iolib : <INIT> ERROR ADD CHARCTOR DEVICE \n");
+		return PTR_ERR(devlp);
 	}
 
 	/* I/O Mapping */
-	map_baseaddr = cps_common_mem_alloc( 0x08000000, 0x2100, "", CPS_COMMON_MEM_NONREGION );
+	map_baseaddr = cps_common_mem_alloc( 0x08000000, (CPS_DEVICE_MAX_NUM * 0x100), "cps-iolib-device", CPS_COMMON_MEM_NONREGION );
 
 	if( !map_baseaddr ){
 		printk(KERN_INFO "cpsio : MEMORY cannot allocation. [%lx]", (unsigned long)map_baseaddr );
@@ -365,21 +369,18 @@ static void cpsio_exit(void)
 {
 
 	dev_t dev = MKDEV(cpsio_major , 0 );
-	int cnt = 0;
 
 	/* I/O UnMapping */
-	cps_common_mem_release( 0x08000000, 0x2100, map_baseaddr, CPS_COMMON_MEM_NONREGION );
+	cps_common_mem_release( 0x08000000,(CPS_DEVICE_MAX_NUM * 0x100), map_baseaddr, CPS_COMMON_MEM_NONREGION );
 
-	for( cnt = cpsio_minor; cnt < ( cpsio_minor + cpsio_max_devs ) ; cnt ++){
-		cpsio_dev = MKDEV( cpsio_major , cnt );
-		device_destroy( cpsio_class, cpsio_dev );
-	}
+	cpsio_dev = MKDEV( cpsio_major , cpsio_minor );
+	device_destroy( cpsio_class, cpsio_dev );
 
 	class_destroy(cpsio_class);
 
 	cdev_del( &cpsio_cdev );
 
-	unregister_chrdev_region( dev, cpsio_max_devs );
+	unregister_chrdev_region( dev, cpsio_devs );
 
 	printk(KERN_INFO " cps-iolib : <EXIT> \n");
 

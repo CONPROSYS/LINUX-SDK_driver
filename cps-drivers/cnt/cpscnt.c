@@ -43,7 +43,7 @@
 #endif
 
 
-#define DRV_VERSION	"0.9.6"
+#define DRV_VERSION	"1.0.0"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Counter I/O driver");
@@ -270,14 +270,14 @@ void cpscnt_32xxI_allocate_list( unsigned int node, unsigned int max_ch ){
 void cpscnt_32xxI_free_list_of_device( unsigned int node ){
 
 	PCPSCNT_32XXI_DATA cnt_32xxi_data, next;
-	unsigned int cnt;
+//	unsigned int cnt;
 
 	list_for_each_entry_safe( cnt_32xxi_data, next, &cpscnt_32xxI_head, list ){
 		if( cnt_32xxi_data->node == node || node == 0xFFFF ){
 			list_del( &cnt_32xxi_data->list );
 
-			for(cnt = 0; cnt < cnt_32xxi_data->max_ch; cnt ++ )
-				kfree( cnt_32xxi_data->data );
+			//for(cnt = 0; cnt < cnt_32xxi_data->max_ch; cnt ++ )
+			kfree( cnt_32xxi_data->data );
 
 			kfree( cnt_32xxi_data );
 		}
@@ -740,7 +740,7 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	unsigned char *valb;
 
 	/* command */
-	cps_common_outb( BaseAddr + OFFSET_CNT_ADDRESS_COMMAND , wCommand );
+	contec_mcs341_outb( BaseAddr + OFFSET_CNT_ADDRESS_COMMAND , wCommand );
 	DEBUG_CPSCNT_COMMAND(KERN_INFO"Com:%x hex \n", wCommand );
 	/* data */
 	switch( isReadWrite ){
@@ -748,7 +748,7 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		DEBUG_CPSCNT_COMMAND(KERN_INFO"<READ>\n");
 	
 		for( cnt = 0; cnt < size; cnt ++ ){
-			cps_common_inpb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , &dat[cnt] );
+			contec_mcs341_inpb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , &dat[cnt] );
 			DEBUG_CPSCNT_COMMAND(KERN_INFO"   +%d: %x hex", cnt, dat[cnt]);
 		}
 
@@ -788,12 +788,12 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		for( cnt = 0; cnt < size; cnt ++ ){
 			DEBUG_CPSCNT_COMMAND(KERN_INFO"   +%d: %x hex", cnt, dat[cnt]);
 			// DataWrite UnLock
-			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_UNLOCK );
+			contec_mcs341_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_UNLOCK );
 
-			cps_common_outb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , dat[cnt] );
+			contec_mcs341_outb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , dat[cnt] );
 
 			// DataWrite Lock
-			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_LOCK );
+			contec_mcs341_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_LOCK );
 
 		}
 		break;
@@ -1141,10 +1141,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	PCPSCNT_DRV_FILE dev = filp->private_data;
 	unsigned char valb = 0;
 	unsigned long valdw = 0;
-	unsigned long flags;
+	unsigned long flags = 0;
 
-	unsigned long baseAddr = (unsigned long)dev->baseAddr;
-	PCPSCNT_32XXI_DATA pData = (PCPSCNT_32XXI_DATA)dev->data.ChannelData;
+	unsigned long baseAddr = 0;
+	PCPSCNT_32XXI_DATA pData = (PCPSCNT_32XXI_DATA)NULL;
 
 	struct cpscnt_ioctl_arg ioc;
 	struct cpscnt_ioctl_string_arg ioc_str; // Ver.0.9.4
@@ -1156,6 +1156,8 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 		return -EFAULT;
 	}
 
+	baseAddr = (unsigned long)dev->baseAddr;
+	pData = (PCPSCNT_32XXI_DATA)dev->data.ChannelData;
 
 	switch( cmd ){
 
