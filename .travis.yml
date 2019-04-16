@@ -33,11 +33,11 @@ addons:
     # Commands to prepare for build_command
     # ** likely specific to your build **
     # build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc-4.7 --comptype gcc --template;cov-configure --comptype gcc --compiler arm-linux-gnueabi-gcc-4.8 --template"
-    build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc-4.7 --comptype gcc --template"
+    build_command_prepend: "cov-configure --compiler arm-linux-gnueabi-gcc --comptype gcc --template"
 
     # The command that will be added as an argument to "cov-build" to compile your project for analysis,
     # ** likely specific to your build **
-    build_command: "sudo make"
+    build_command: "make"
 
     # Pattern to match selecting branches that will run analysis. We recommend leaving this set to 'coverity_scan'.
     # Take care in resource usage, and consider the build frequency allowances per
@@ -53,7 +53,7 @@ before_install:
 
   # Download the kernel
   - git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
-  - export KERNELDIR=$PWD/build
+  - export CPS_KERNEL_DIR=$PWD/build
 
   # Download the library master branch
   - cd $TRAVIS_BUILD_DIR/../
@@ -72,15 +72,16 @@ before_install:
 
 
 before_script:
-  - cd $KERNELDIR
+  - cd $CPS_KERNEL_DIR
   - ls /usr/bin/arm* 
   - make distclean
   - make defconfig CPS-MCS341-DSX.novlan_defconfig
   - make prepare
   - cd ./scripts
-  - make -C $KERNELDIR M=`pwd` modules
+  - make -C $CPS_KERNEL_DIR M=`pwd` modules
   - cd $TRAVIS_BUILD_DIR/../
   - ln -s $TRAVIS_BUILD_DIR driver
+  - ln -s $CPS_KERNEL_DIR kernel
   - cd $TRAVIS_BUILD_DIR
  
 script:
