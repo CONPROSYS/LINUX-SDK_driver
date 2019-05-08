@@ -62,7 +62,7 @@
     * com (Serial Communication)
         * Version 1.0.7
     * cnt (Counter)
-        * Version 0.9.7
+        * Version 1.0.1
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
@@ -70,16 +70,23 @@
     * io (iolib)
         * Version 2.0.0         
     * spi/dio (Digital Input/Output)
+        * Version 0.0.5
 
 * cps-iolib ( CPS-MCS341 I/O Driver Modules )
-        * version 1.0.6
+    * version 1.0.6
+    
     > Caution : When this driver is loading, cps-driver can not run. 
 
 
 ## Change logs
 * Ver 1.5.0.0
     * cpsssi Ver.1.0.12 -> 1.0.13
-        * Fixed cpsssi_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT. 
+        * Fixed cpsssi_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
+    * cpscnt Ver.1.0.0 -> 1.0.1
+        * Fixed cpscnt_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
+    * cpsdio_spi Ver.0.0.4 -> 0.0.5
+        * Fixed cpsdio_ioctl function. When the value sets overflow, the value does not set right.
+
 * Ver.1.4.2.0
     * cps-driver Ver.1.1.2 -> 1.1.3
         * Fixed. When cps-driver and cps-iolib are accessing devices, the process gets grabled data.
