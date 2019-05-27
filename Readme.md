@@ -1,8 +1,15 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.4.3.0 (2019/07/11)
+* Version : 1.5.0.0 (2019/07/11)
 * GNU Public License Ver 2.0
+
+## Licenses
+
+|Sub Folder| License |
+|:---|:---|
+|cps-driver (CPS-MCS341 Driver Module) | [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt) |
+|cps-iolib (CPS-MCS341 I/O Driver Modules)| [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt) |
 
 ## Support CONTEC Devices
 ### Controllers
@@ -10,13 +17,14 @@
 * [CPS-MCS341-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341-ds1-131/price/)
 * [CPS-MCS341G-DS1-130](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341g-ds1-130/price/)
 * [CPS-MCS341Q-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341q-ds1-131/price/)
+* CPS-MCS341G-DS2-130 [LARA-R2 series](https://www.u-blox.com/en/product/lara-r2-series)
 
 ### Modules
 * Analog Input/Output
     * [CPS-AI-1608LI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ai-1608li/price/)
-    * [CPS-AO-1608LI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ao-1604li/price/)
+    * [CPS-AO-1604LI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ao-1604li/price/)
     * [CPS-AI-1608ALI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ai-1608ali/price/)
-    * [CPS-AO-1608VLI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ao-1604vli/price/)
+    * [CPS-AO-1604VLI](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ao-1604vli/price/)
 * Sensor Input
     * [CPS-SSI-4P](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-ssi-4p/price/)
 * Digital Input/Output
@@ -46,8 +54,7 @@
     * [CPS-MM-LC](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/cps-io-module/cps-mm-lc/price/)
 
 ## Folder / Sources
-* cps-driver
-    CPS-MCS341 Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt)
+* cps-driver ( CPS-MCS341 Driver Modules )
     * aio (Analog Input/Output)
         * Version 1.2.2
     * dio (Digital Input/Output)
@@ -55,22 +62,30 @@
     * com (Serial Communication)
         * Version 1.0.8
     * cnt (Counter)
-        * Version 0.9.7
+        * Version 1.0.1
     * ssi (Sensor Input)
-        * Version 1.0.12
+        * Version 1.0.13
     * system (Base)
-        * Version 1.1.3
+        * Version 1.2.0
     * io (iolib)
-        * Version 2.0.0        
+        * Version 2.0.0         
     * spi/dio (Digital Input/Output)
+        * Version 0.0.5
 
-* cps-iolib 
-    * CPS-MCS341 I/O Driver Modules[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt)
-        * version 1.0.6
+* cps-iolib ( CPS-MCS341 I/O Driver Modules )
+    * version 1.0.6
+    
     > Caution : When this driver is loading, cps-driver can not run. 
 
     
 ## Change logs
+* Ver 1.5.0.0
+    * cpsssi Ver.1.0.12 -> 1.0.13
+        * Fixed cpsssi_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
+    * cpscnt Ver.1.0.0 -> 1.0.1
+        * Fixed cpscnt_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
+    * cpsdio_spi Ver.0.0.4 -> 0.0.5
+        * Fixed cpsdio_ioctl function. When the value sets overflow, the value does not set right.
 
 * Ver.1.4.3.0
     * 8250_cpscom Ver.1.0.7 -> 1.0.8

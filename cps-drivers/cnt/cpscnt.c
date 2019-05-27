@@ -1168,6 +1168,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSCNT_COMMAND_READ_COUNT( (unsigned long)dev->baseAddr ,ioc.ch, &valdw);
 					ioc.val = valdw;
@@ -1184,7 +1188,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
 					CPSCNT_COMMAND_WRITE_COUNT( (unsigned long)dev->baseAddr ,ioc.ch, &valdw );
@@ -1198,6 +1206,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSCNT_COMMAND_GET_STATUS((unsigned long)dev->baseAddr ,ioc.ch, &valb );
 					ioc.val = (unsigned long) valb;
@@ -1215,7 +1227,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					//debug
 					valb = (unsigned char) ioc.val;
@@ -1232,7 +1248,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}	
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
 					cpscnt_32xxi_set_z_mode( ioc.ch, pData, valb );
@@ -1253,7 +1273,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+									
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
 //////////////////////// Ver.0.9.2
@@ -1272,7 +1296,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
 					cpscnt_32xxi_set_digital_filter( ioc.ch, pData, valb );
@@ -1288,6 +1316,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					cpscnt_32xxi_get_digital_filter( ioc.ch, pData, &valb );
 					ioc.val = (unsigned long) valb;
@@ -1470,7 +1502,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}			
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = ioc.val;
 					cpscnt_32xxi_set_selectsignal(ioc.ch, pData, valb);
@@ -1486,6 +1521,9 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					cpscnt_32xxi_get_selectsignal( ioc.ch ,pData, &valb );
 //					CPSCNT_COMMAND_GET_SELECT_COMMON_INPUT( (unsigned long)dev->baseAddr , &valb );
@@ -1546,6 +1584,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = ioc.val;
 					cpscnt_32xxi_set_count_direction(ioc.ch, pData, valb);
@@ -1560,6 +1602,7 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					ioc.val = pData->max_ch;
 					spin_unlock_irqrestore(&dev->lock, flags);
@@ -1577,7 +1620,11 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valb = ioc.val;
 					cpscnt_32xxi_set_z_logic(ioc.ch, pData, valb);
@@ -1592,6 +1639,10 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.channelNum ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					cpscnt_32xxi_get_z_logic(ioc.ch, pData, &valb);
 					ioc.val = (unsigned long) valb;

@@ -24,7 +24,7 @@ addons:
     # ** specific to your project **
     project:
       name: "CONPROSYS/LINUX-SDK_driver"
-      version: "1.4.2.0"
+      version: "1.5.0.0"
       description: "driver"
 
     # Where email notification of build analysis results will be sent
