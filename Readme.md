@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.3.3.3 (2018/11/16)
+* Version : 1.3.3.4 (2019/06/17)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -49,7 +49,7 @@
 * cps-driver
     CPS-MCS341 Driver Modules [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-drivers/gpl-2.0.txt)
     * aio (Analog Input/Output)
-        * Version 1.1.0.1
+        * Version 1.1.0.2
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
@@ -59,7 +59,7 @@
     * ssi (Sensor Input)
         * Version 1.0.11
     * system (Base)
-        * Version 1.1.2
+        * Version 1.1.2.1
     * spi/dio (Digital Input/Output)
 
 * cps-iolib 
@@ -67,6 +67,12 @@
 
 
 ## Change log
+* Ver.1.3.3.4
+    * cps-driver Ver.1.1.2 -> Ver.1.1.2.1
+        * Fixed the minimum. When cps-driver and cps-iolib are accessing devices, the process gets grabled data.
+            * Tested comment-out cps-driver in the monitiring FPGA routine. 
+    * cpsaio Ver 1.1.0.1 -> Ver.1.1.0.2
+        * Added ContecCpsAioResetAiMemory function.
 * Ver.1.3.3.3
     * Change Makefile in spi/dio.
 * Ver 1.3.3.2

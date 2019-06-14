@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.1.0.1"
+#define DRV_VERSION	"1.1.0.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -51,6 +51,9 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSAIO_DRIVER_NAME "cpsaio"
 
+#define CPSAIO_CLEARTYPE_RESETSTATUS 1
+#define CPSAIO_CLEARTYPE_RESETMEMORY 2
+#define CPSAIO_CLEARTYPE_RESETDEVICE 3
 /**
 	@struct cps_aio_data
 	@~English
@@ -677,6 +680,79 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 /// @}
 
 /// @}
+
+/**
+	@~English
+	@brief This function get analog clear status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memflags, unsigned short aiflags , unsigned short aoflags )
+{
+
+	if( memflags )
+		CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG(BaseAddr , &memflags );
+
+	if( aiflags )
+		CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG(BaseAddr , &aiflags );
+	
+	if( aoflags )
+		CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG(BaseAddr , &aoflags );
+
+	return 0;	
+}
+
+/**
+	@~English
+	@brief This function get analog input status.
+	@param BaseAddr : base address
+	@param wStatus : status
+	@return true : 0
+	@~Japanese
+	@brief Analogステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
+**/ 
+long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned char FuncType  )
+{
+	unsigned short ai_flag = 0, ao_flag = 0, mem_flag = 0;
+
+	switch( inout ){
+	case CPS_AIO_INOUT_AI :
+		switch( FuncType ){
+			case CPSAIO_CLEARTYPE_RESETSTATUS:
+				ai_flag = 0xFFFF;
+				mem_flag = 0xFFFD;
+				break;
+			case CPSAIO_CLEARTYPE_RESETMEMORY:
+				mem_flag = 0xFFFF;
+				break;
+			case CPSAIO_CLEARTYPE_RESETDEVICE:
+				ai_flag = 0xFFFF;
+				mem_flag = 0xFFFF;
+				break;
+			default:
+				return -EFAULT;					
+		} 
+		_cpsaio_clear_status( BaseAddr , mem_flag, ai_flag , ao_flag );
+		break;
+
+	case CPS_AIO_INOUT_AO :
+		_cpsaio_clear_status( BaseAddr , 0xFFFF, 0 , 0xFFFF );
+		break;
+	default:
+		return -EFAULT;		
+	}	
+
+	return 0;
+}
 
 /**
 	@brief cpsaio_read_eeprom
@@ -1539,6 +1615,33 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;	
 
+		case IOCTL_CPSAIO_RESET_MEMORY:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+
+					cpsaio_reset_status( ioc.inout, (unsigned long)dev->baseAddr, CPSAIO_CLEARTYPE_RESETMEMORY );
+
+					switch( ioc.inout ){
+					case CPS_AIO_INOUT_AI :				
+						CPSAIO_COMMAND_AI_CLR( (unsigned long)dev->baseAddr );
+						break;
+					case CPS_AIO_INOUT_AO:
+						CPSAIO_COMMAND_AO_CLR( (unsigned long)dev->baseAddr );
+						break;
+					default:
+						spin_unlock_irqrestore(&dev->lock, flags);
+						return -EFAULT;						
+					}
+
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					break;
 /////// MEMORY I/O COMMAND ////////
 
 		case IOCTL_CPSAIO_GETMEMSTATUS:

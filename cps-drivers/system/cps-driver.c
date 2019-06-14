@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.2
+ * Version 1.1.2.1
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.2"
+#define DRV_VERSION	"1.1.2.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -1265,18 +1265,18 @@ void mcs341_controller_timer_function(unsigned long arg)
 	int cnt;
 
 	// Err LED 追加 Ver.1.0.8
-	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
+	// for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
 
-		if( ledEnable[cnt] == 2 ){
-			if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
-				ledState[cnt] ^= 0x01;	// 点滅
-				contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
-				led_timer_count[cnt] = 0;
-			}
-			else
-				led_timer_count[cnt] ++;
-		}
-	}
+	// 	if( ledEnable[cnt] == 2 ){
+	// 		if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
+	// 			ledState[cnt] ^= 0x01;	// 点滅
+	// 			contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
+	// 			led_timer_count[cnt] = 0;
+	// 		}
+	// 		else
+	// 			led_timer_count[cnt] ++;
+	// 	}
+	// }
 
 	//Ver 1.0.10 [bugfix] 2016.06.10
 	if( !reset_button_check_mode ){
@@ -1310,26 +1310,26 @@ void mcs341_controller_timer_function(unsigned long arg)
 		}
 	}
 
-	/* Ver 1.0.14 Do not run without shutdown sequence. */
-	if( !shutdown_sequence ){
-		/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
-		if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
-			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:FPGA re-init sequence!\n");
-			// restarting initialize !!
-			mcs341_systeminit_reg = 0;
-			if( _contec_mcs341_controller_cpsDevicesInit( 1 ) == 0 ){
-				_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
-			}
-			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:last status %x \n",mcs341_systeminit_reg);
-		}
-	}else{
-			// After Shutdown /Reboot sequence
-			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:Do not run restart sequence!\n");
-	}
+	// /* Ver 1.0.14 Do not run without shutdown sequence. */
+	// if( !shutdown_sequence ){
+	// 	/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
+	// 	if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+	// 		DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:FPGA re-init sequence!\n");
+	// 		// restarting initialize !!
+	// 		mcs341_systeminit_reg = 0;
+	// 		if( _contec_mcs341_controller_cpsDevicesInit( 1 ) == 0 ){
+	// 			_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
+	// 		}
+	// 		DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:last status %x \n",mcs341_systeminit_reg);
+	// 	}
+	// }else{
+	// 		// After Shutdown /Reboot sequence
+	// 		DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:Do not run restart sequence!\n");
+	// }
 
-	if( watchdog_timer_msec ){
-		contec_mcs341_controller_clear_watchdog();
-	}
+	// if( watchdog_timer_msec ){
+	// 	contec_mcs341_controller_clear_watchdog();
+	// }
 
 	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
 }
