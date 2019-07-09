@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.1.0.2"
+#define DRV_VERSION	"1.1.0.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -2142,6 +2142,7 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
+	unsigned short wPro_version = 0;
 	int iRet = 0;
 	int nodeNo = 0; // Ver.1.0.8
 
@@ -2162,6 +2163,23 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 
 			dev = (PCPSAIO_DRV_FILE)inode->i_private;
 			filp->private_data =  (PCPSAIO_DRV_FILE)dev;
+
+			///// Test code 
+			if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ){
+				printk(KERN_WARNING"cpsaio%d is not category\n", dev->node);				
+				contec_mcs341_device_inpw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, &wPro_version);
+
+				if( wPro_version == 0x0100 ){
+					printk(KERN_WARNING"cpsaio%d is not category values [%hd]\n", dev->node, wPro_version);
+					contec_mcs341_device_outw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, 0x0000 );
+
+					if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ) {
+						printk(KERN_ERR"cpsaio%d is not category\n", dev->node);
+						return -EFAULT;			
+					}
+				}
+			}
+			///// Test code end
 
 			if( dev->ref ){
 				dev->ref++;
@@ -2194,6 +2212,26 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 		iRet = -ENOMEM;
 		goto NOT_IOMEM_ALLOCATION;
 	}
+
+	///// Test code 
+	if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ){
+		printk(KERN_WARNING"cpsaio%d is not category\n", dev->node);
+		contec_mcs341_device_inpw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, &wPro_version);
+
+		if( wPro_version == 0x0100 ){
+			printk(KERN_WARNING"cpsaio%d is not category values [%hd]\n", dev->node, wPro_version);
+
+			contec_mcs341_device_outw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, 0x0000);
+
+			if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ){
+				iRet = -EFAULT;
+				printk(KERN_ERR"cpsaio%d is not category\n", dev->node);		
+				goto NOT_FOUND_AIO_PRODUCT;			
+			}
+		}
+	}
+	///// Test code end
+
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;
