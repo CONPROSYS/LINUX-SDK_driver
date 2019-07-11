@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.7"
+#define DRV_VERSION	"1.0.8"
 
 /*
  * Configuration:
@@ -84,7 +84,7 @@ static unsigned int skip_txen_test; /* force skip of txen test at init time */
 /*
  * Debugging.
  */
-#if 0 
+#if 0
 #define DEBUG_AUTOCONF(fmt...)	printk(fmt)
 #else
 #define DEBUG_AUTOCONF(fmt...)	do { } while (0)
@@ -521,6 +521,7 @@ static void io_serial_out(struct uart_port *p, int offset, int value)
 static unsigned int cpscom_serial_in(struct uart_port *p, int offset)
 {
 	unsigned int val;
+	unsigned char valb = 0;
 	int dev;
 	int ch;
 #ifdef DEBUG_SERIAL_CEMARKING_TEST
@@ -546,10 +547,12 @@ static unsigned int cpscom_serial_in(struct uart_port *p, int offset)
 //		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_LOW); // cps_common_io.h
 //	}
 #ifdef DEBUG_SERIAL_CEMARKING_TEST
-	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &valN[0] );
+	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &valb );
+	valN[0] = valb;
 	//valN[0] = readb( p->membase + offset );
 #else
-	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &val );
+	contec_mcs341_inpb( (unsigned long)(p->membase + offset), &valb );
+	val = valb;
 	//val = readb(p->membase + offset);
 #endif
 
@@ -566,10 +569,12 @@ static unsigned int cpscom_serial_in(struct uart_port *p, int offset)
 	else val = valN[1];
 #endif
 
+#ifdef DEBUG_SERIAL_REGISTER
 	dev = contec_mcs341_device_deviceNum_get( (unsigned long) p->mapbase );
 	ch = contec_mcs341_device_serial_channel_get( (unsigned long) p->mapbase );
 
 	DEBUG_IOPORT(KERN_INFO "[Read]<dev:%d Ch:%d> %s : %x(%c)\n", dev, ch, reg[offset], val, val);
+#endif
 
 //	cps_fpga_access(CPS_FPGA_ACCESS_WORD); // cps_common_io.h
 	
@@ -598,14 +603,14 @@ static void cpscom_serial_out(struct uart_port *p, int offset, int value)
 //	}
 
 //	writeb(value, p->membase + offset);
-	contec_mcs341_outb( (unsigned long)(p->membase + offset), value );
+	contec_mcs341_outb( (unsigned long)(p->membase + offset), (unsigned char)value );
 	dev = contec_mcs341_device_deviceNum_get( (unsigned long) p->mapbase );
 	ch = contec_mcs341_device_serial_channel_get( (unsigned long) p->mapbase );
 
 #ifdef DEBUG_SERIAL_REGISTER
 	DEBUG_IOPORT(KERN_INFO "[Write]<Dev:%d Ch:%d> %s : %x\n", dev, ch, reg[offset], value );
 #endif
-	cps_fpga_access(CPS_FPGA_ACCESS_WORD); // cps_common_io.h
+//	cps_fpga_access(CPS_FPGA_ACCESS_WORD); // cps_common_io.h
 
 }
 
@@ -2379,7 +2384,7 @@ static int cpscom_startup(struct uart_port *port)
 dont_test_tx_en:
 
 	// 2018.01.19
-	if( up->port.type != PORT_CPS16550A ){
+	if( up->port.type != PORT_CPS16550 ){
 		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A );
 		serial_outp(up, UART_FCR, 0x80 );
 		serial_outp(up, UART_LCR, 0);
@@ -2842,9 +2847,11 @@ static int cpscom_ivr_settings(struct uart_8250_port *up)
 			break;
 		}
 
-		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH);
-		writeb( 0x83, IVR );
-		cps_fpga_access(CPS_FPGA_ACCESS_WORD);
+//		cps_fpga_access(CPS_FPGA_ACCESS_BYTE_HIGH);
+//		writeb( 0x83, IVR );
+//		cps_fpga_access(CPS_FPGA_ACCESS_WORD);
+
+		contec_mcs341_outb((unsigned long)IVR, 0x83);
 
 		iounmap( IVR );
 		release_mem_region( map_ivr, 1 );
@@ -3860,14 +3867,14 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
  
  /**
 	 @~Japanese
-	 @brief MCS341 contec_mcs341_lora_deviceID_show間数
+	 @brief MCS341 contec_mcs341_deviceID_show間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return buf : 0x19 または 0x03　
- 	 @detail loraモジュールのdeviceIDを取得・表示する
+ 	 @detail COMモジュールのdeviceIDを取得・表示する
  **/
- static int contec_mcs341_lora_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
+ static int contec_mcs341_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
 	struct uart_port * uport = dev_get_drvdata(dev);
 	//2018.05.11
@@ -3880,7 +3887,7 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	
 	return sprintf(buf,"%x", device_ID);
  }
- static DEVICE_ATTR(id , S_IRUSR | S_IRGRP | S_IROTH ,contec_mcs341_lora_deviceID_show, NULL );
+ static DEVICE_ATTR(id , S_IRUSR | S_IRGRP | S_IROTH ,contec_mcs341_deviceID_show, NULL );
 
  /**
 	 @~Japanese
@@ -4090,6 +4097,54 @@ static int contec_mcs341_led3_status_store(struct device *dev, struct device_att
 static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 	contec_mcs341_led3_status_show, contec_mcs341_led3_status_store );
 
+ /**
+	 @~Japanese
+	 @brief MCS341 contec_mcs341_Revision_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
+	 @param buf : buffer
+	 @return buf　
+ 	 @detail comモジュールのRevisionを取得・表示する
+ **/
+ static int contec_mcs341_Revision_show(struct device *dev, struct device_attribute *attr,char *buf )
+ {
+	struct uart_port * uport = dev_get_drvdata(dev);
+	int Rev = 0;
+	
+	unsigned int devnum = 
+		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+
+	Rev = contec_mcs341_device_fpga_version_get( devnum );
+	
+	return sprintf(buf,"%x", Rev);
+ }
+ static DEVICE_ATTR(revision , S_IRUSR | S_IRGRP | S_IROTH ,contec_mcs341_Revision_show, NULL );
+
+ /**
+	 @~Japanese
+	 @brief MCS341 contec_mcs341_BoardVersion_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
+	 @param buf : buffer
+	 @return buf 　
+ 	 @detail comモジュールのBoardVersionを取得・表示する
+ **/
+ static int contec_mcs341_BoardVersion_show(struct device *dev, struct device_attribute *attr,char *buf )
+ {
+	struct uart_port * uport = dev_get_drvdata(dev);
+	int Board_ver = 0;
+	
+	unsigned int devnum = 
+		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+
+	Board_ver = contec_mcs341_device_board_version_get( devnum );
+	
+	return sprintf(buf,"%x", Board_ver);
+ }
+ static DEVICE_ATTR(board_ver , S_IRUSR | S_IRGRP | S_IROTH ,contec_mcs341_BoardVersion_show, NULL );
+
+
+
 /**
 	@~Japanese
 	@brief MCS341　contec_mcs341_create_8250_device_sysfs関数
@@ -4101,12 +4156,11 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
  
 	int err = 0;
     //2018.05.11
-	int device_ID;
+	int device_ID = 0;
 	struct uart_port * uport = dev_get_drvdata(devp);
-	
 	unsigned int devnum = 
 	contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
- 
+
 	device_ID = contec_mcs341_device_productid_get( devnum );
 
 	switch(device_ID){
@@ -4124,6 +4178,9 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 		break;
 	}
 	err |= device_create_file(devp,&dev_attr_id);
+	err |= device_create_file(devp,&dev_attr_revision);
+	err |= device_create_file(devp,&dev_attr_board_ver);
+
 	return err;
 }
 	
@@ -4159,6 +4216,8 @@ static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
 		break;
 	}
 	device_remove_file(devp, &dev_attr_id);
+	device_remove_file(devp,&dev_attr_revision);
+	device_remove_file(devp,&dev_attr_board_ver);	
  }
 
  static int __init cpscom_init(void)
