@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.4.2.0 (2019/04/16)
+* Version : 1.4.3.0 (2019/07/11)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -53,7 +53,7 @@
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
-        * Version 1.0.7
+        * Version 1.0.8
     * cnt (Counter)
         * Version 0.9.7
     * ssi (Sensor Input)
@@ -68,8 +68,14 @@
     * CPS-MCS341 I/O Driver Modules[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://github.com/CONPROSYS/LINUX-SDK_driver/blob/master/cps-iolib/gpl-2.0.txt)
         * version 1.0.6
     > Caution : When this driver is loading, cps-driver can not run. 
+
+    
 ## Change logs
 
+* Ver.1.4.3.0
+    * 8250_cpscom Ver.1.0.7 -> 1.0.8
+        * Fixed. The cpscom_serial_in function does not return the right value.[This is occured 8250_cpscom version 1.0.7 only.]
+        * Updated. The driver added the Revision attribute and the Board Version attribute. 
 * Ver.1.4.2.0
     * cps-driver Ver.1.1.2 -> 1.1.3
         * Fixed. When cps-driver and cps-iolib are accessing devices, the process gets grabled data.
@@ -81,7 +87,7 @@
     * cpscnt Ver.0.9.7 -> 1.0.0
         * Fixed.The cpscnt_32xxI_free_list_of_device duplicate kfree.[Result flow analizing.]
         * Fixed.The cpscnt_ioctl is the null checking after dev->baseAddr and dev->data.ChannelData are setting.[Result flow analizing.]
-    * cpscom Ver.1.0.6 -> 1.0.7
+    * 8250_cpscom Ver.1.0.6 -> 1.0.7
         * Fixed. The cpscom_ivr_settings is breaking IVR equals NULL.[Result flow analizing.]
     * cpsssi Ver 1.0.11 -> 1.0.12
         * Fixed. The cpsssi_command initialize local values.[Result flow analizing.]
