@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.5.0.0 (2019/07/11)
+* Version : 1.5.0.0 (2019/07/16)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -56,7 +56,7 @@
 ## Folder / Sources
 * cps-driver ( CPS-MCS341 Driver Modules )
     * aio (Analog Input/Output)
-        * Version 1.2.2
+        * Version 1.2.3
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
@@ -86,6 +86,8 @@
         * Fixed cpscnt_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
     * cpsdio_spi Ver.0.0.4 -> 0.0.5
         * Fixed cpsdio_ioctl function. When the value sets overflow, the value does not set right.
+    * cpsaio Ver.1.2.2 -> 1.2.3
+        * Fixed.The cpsaio_init is checking front registers.
 
 * Ver.1.4.3.0
     * 8250_cpscom Ver.1.0.7 -> 1.0.8
