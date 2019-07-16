@@ -87,7 +87,7 @@
     * cpsdio_spi Ver.0.0.4 -> 0.0.5
         * Fixed cpsdio_ioctl function. When the value sets overflow, the value does not set right.
     * cpsaio Ver.1.2.2 -> 1.2.3
-        * Fixed.The cpsaio_command initialize local values.[Result flow analizing.]
+        * Fixed.The cpsaio_init is checking front registers.
 
 * Ver.1.4.3.0
     * 8250_cpscom Ver.1.0.7 -> 1.0.8
