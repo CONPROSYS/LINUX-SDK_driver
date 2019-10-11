@@ -1,6 +1,6 @@
 #!/bin/sh
 
-GLOBAL_MANUFACTURE_ID="0028.02"
+GLOBAL_MANUFACTURE_ID="0028.03"
 
 create_mcs341_driver_check(){
 MANUFACTURE_ID=$1
