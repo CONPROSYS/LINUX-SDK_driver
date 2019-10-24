@@ -65,7 +65,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.1.3
+        * Version 1.1.4
     * io (iolib)
         * Version 2.0.0         
     * spi/dio (Digital Input/Output)
@@ -87,6 +87,8 @@
         * Fixed cpsdio_ioctl function. When the value sets overflow, the value does not set right.
     * cpsaio Ver.1.2.2 -> 1.2.3
         * Fixed.The cpsaio_init is checking front registers.
+    * cps-driver Ver.1.1.3 -> 1.1.4
+        * Fixed. Out of bounds read.contec_mcs341_dio0_direction_show function.)  [Result flow analizing.]
 
 * Ver.1.4.3.0
     * 8250_cpscom Ver.1.0.7 -> 1.0.8
