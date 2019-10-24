@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.5.0.0 (2019/07/16)
+* Version : 1.5.0.0 (2019/10/24)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -17,7 +17,6 @@
 * [CPS-MCS341-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341-ds1-131/price/)
 * [CPS-MCS341G-DS1-130](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341g-ds1-130/price/)
 * [CPS-MCS341Q-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341q-ds1-131/price/)
-* CPS-MCS341G-DS2-130 [LARA-R2 series](https://www.u-blox.com/en/product/lara-r2-series)
 
 ### Modules
 * Analog Input/Output
@@ -66,7 +65,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.2.0
+        * Version 1.1.3
     * io (iolib)
         * Version 2.0.0         
     * spi/dio (Digital Input/Output)
