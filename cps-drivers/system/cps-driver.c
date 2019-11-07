@@ -353,6 +353,10 @@ static void contec_mcs341_inpb(unsigned long addr, unsigned char *valb )
 {
 	unsigned long flags = 0;
 
+	*valb = 0;
+	if (addr < map_baseaddr || addr >= map_baseaddr + 0x100 * (deviceNumber + 1 ) )
+		return;
+
 	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_inpb( addr, valb );
 	spin_unlock_irqrestore(&mcs341_access_lock, flags);

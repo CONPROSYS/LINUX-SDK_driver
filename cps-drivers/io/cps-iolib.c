@@ -8,7 +8,7 @@
 **/
 /*
  *  cps-iolib Driver with CPS-MCS341.
- * Version 1.0.5
+ * Version 2.0.1
  *
  *  I/O Control CPS-MCS341 Series (only) Driver by CONTEC .
  *
