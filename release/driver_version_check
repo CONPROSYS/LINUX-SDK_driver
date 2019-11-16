@@ -1,6 +1,6 @@
 #!/bin/sh
 
-GLOBAL_MANUFACTURE_ID="0030"
+GLOBAL_MANUFACTURE_ID="0031"
 
 create_mcs341_driver_check(){
 MANUFACTURE_ID=$1
@@ -11,13 +11,13 @@ echo "CPS_DRIVER_MANUFACTURE_ID=$MANUFACTURE_ID" >> driver_version_check
 echo " " >> driver_version_check
 echo "PWD=\$(pwd)" >> driver_version_check
 echo " " >> driver_version_check
-echo "CPS_DRIVER_VERSION=\$(/sbin/modinfo '$PWD'/cps-driver.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_DIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsdio.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_AIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsaio.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_COM_VERSION=\$(/sbin/modinfo '$PWD'/8250_cpscom.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_SSI_VERSION=\$(/sbin/modinfo '$PWD'/cpsssi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_CNT_VERSION=\$(/sbin/modinfo '$PWD'/cpscnt.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
-echo "CPS_IOLIB_VERSION=\$(/sbin/modinfo '$PWD'/cps-iolib.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_DRIVER_VERSION=\$(/sbin/modinfo \$PWD/cps-driver.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_DIO_VERSION=\$(/sbin/modinfo \$PWD/cpsdio.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_AIO_VERSION=\$(/sbin/modinfo \$PWD/cpsaio.ko | grep version:| awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_COM_VERSION=\$(/sbin/modinfo \$PWD/8250_cpscom.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_SSI_VERSION=\$(/sbin/modinfo \$PWD/cpsssi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_CNT_VERSION=\$(/sbin/modinfo \$PWD/cpscnt.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_IOLIB_VERSION=\$(/sbin/modinfo \$PWD/cps-iolib.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo " " >> driver_version_check
 echo "echo \"-------- Driver Manufacture ID ------------------\"" >> driver_version_check
 echo "echo \"Manufacture ID : \$CPS_DRIVER_MANUFACTURE_ID \"" >> driver_version_check
@@ -43,7 +43,7 @@ echo "PWD=\$(pwd)" >> driver_version_check
 echo " " >> driver_version_check
 echo "CPS_DRIVER_MANUFACTURE_ID=$MANUFACTURE_ID" >> driver_version_check
 echo " " >> driver_version_check
-echo "CPS_SPIDIO_VERSION=\$(/sbin/modinfo '$PWD'/cpsdio_spi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
+echo "CPS_SPIDIO_VERSION=\$(/sbin/modinfo \$PWD/cpsdio_spi.ko | grep version: | awk 'NR == 1{ print \$2 }')" >> driver_version_check
 echo " " >> driver_version_check
 echo "echo \"-------- Driver Manufacture ID ------------------\"" >> driver_version_check
 echo "echo \"Manufacture ID : \$CPS_DRIVER_MANUFACTURE_ID \"" >> driver_version_check
@@ -54,14 +54,19 @@ echo "echo \"------------------------------------------------\"" >> driver_versi
 chmod 755 driver_version_check
 }
 
+for target_controller in mcs341 mc341; do
+    cd ./$target_controller
+    for target_architecture in arm armhf i686 x86_64; do
+        cd ./$target_architecture
+        if [ "$target_controller" = "mcs341" ];then
+            create_mcs341_driver_check $GLOBAL_MANUFACTURE_ID
+        elif [ "$target_controller" = "mc341" ];then
+            create_mc341_driver_check $GLOBAL_MANUFACTURE_ID
+        fi
+        ./driver_version_check
+        cd ../
+    done
+    cd ../
+done
 
-cd mcs341
-create_mcs341_driver_check $GLOBAL_MANUFACTURE_ID
-./driver_version_check
-
-cd ../mc341
-create_mc341_driver_check $GLOBAL_MANUFACTURE_ID
-./driver_version_check
-
-cd ../
 

@@ -9,15 +9,31 @@ endif
 
 EXTRA_CFLAGS	:= -DDEBUG=0
 
+#set architecture
+ifeq "${ARCH}" ""
+ ifeq "${CPS_SDK_TARGET_NAME}" ""
+  # without CONPROSYS Linux SDK
+  ARCH=arm
+  CROSS_COMPILE=arm-linux-gnueabi-
+ else
+  # CONPROSYS Linux SDK
+  ARCH=$(shell arch)
+ endif
+endif
+
+ifeq "${CROSS_COMPILE}" "arm-linux-gnueabihf-"
+	HF_OPT=hf
+endif
+
 ifeq "$(CPS_SDK_ROOTDIR)" ""
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build　##target kernel source path ( self build )
 KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source path ( static path )
 #KERNELDIR ?= ~/CPS_SDK/kernel #target kernel source path ( static path )
-CPS_DRIVER_REELASE_DIR:=../../release/mc341/
+CPS_DRIVER_REELASE_DIR:=../../release/mc341/$(ARCH)$(HF_OPT)/
 EXTRA_CFLAGS +=-I$(src)/../../../include/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
-CPS_DRIVER_REELASE_DIR:=$(CPS_SDK_ROOTDIR)/driver/release/mc341/ 
+CPS_DRIVER_REELASE_DIR:=$(CPS_SDK_ROOTDIR)/driver/release/mc341/$(ARCH)$(HF_OPT)/
 EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include
 endif
 

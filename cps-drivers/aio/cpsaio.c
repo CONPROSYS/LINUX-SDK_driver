@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.2.2"
+#define DRV_VERSION	"1.2.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -2607,6 +2607,42 @@ out:
 
 /**
 	@~English
+	@brief This function is checking the register of front.
+	@param dev : struct device data pointer
+	@return success: 0 , failed: otherwise 0 (-EFAULT)
+	@note CPS-AI-1608LI, CPS-AI-1608ALI, CPS-AO-1604LI, CPS-AO-1604ALI only.
+ 	@~Japanese
+	@brief この関数はレジスタか表レジスタかどうかを確認します。
+	@param dev : デバイスデータ構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外 (-EFAULT)
+	@note CPS-AI-1608LI, CPS-AI-1608ALI, CPS-AO-1604LI, CPS-AO-1604ALIのみ
+**/
+static int __cpsaio_check_16xxli_front_register( PCPSAIO_DRV_FILE dev ){
+
+	unsigned short wCheck_version = 0;
+	
+	if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ){
+
+		printk(KERN_WARNING"cpsaio%d is not category\n", dev->node);				
+		contec_mcs341_device_common_inpw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, &wCheck_version);
+
+		if( wCheck_version == CPS_DEVICE_COMMON_ROM_PAGE_VALUE ){
+			printk(KERN_WARNING"cpsaio%d is not category values [%hd]\n", dev->node, wCheck_version);
+			contec_mcs341_device_common_outw( dev->node , CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR, 0x0000 );
+
+			if( !contec_mcs341_device_IsCategory(dev->node , CPS_CATEGORY_AIO ) ) {
+				printk(KERN_ERR"cpsaio%d is not category\n", dev->node);
+				return -EFAULT;			
+			}
+		}else{
+			return -EFAULT;
+		}
+	}
+	return 0;
+}
+
+/**
+	@~English
 	@brief This function is called by open user function.
 	@param filp : struct file pointer
 	@param inode : node parameter
@@ -2646,6 +2682,13 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 			dev = (PCPSAIO_DRV_FILE)inode->i_private;
 			filp->private_data =  (PCPSAIO_DRV_FILE)dev;
 
+			///// Ver 1.2.3 check register 
+			iRet = __cpsaio_check_16xxli_front_register( dev );
+
+			if( iRet != 0 )
+				return iRet;
+			///// Ver 1.2.3 end
+
 			if( dev->ref ){
 				dev->ref++;
 				return 0;
@@ -2677,6 +2720,14 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 		iRet = -ENOMEM;
 		goto NOT_IOMEM_ALLOCATION;
 	}
+
+	///// Ver 1.2.3
+	iRet = __cpsaio_check_16xxli_front_register( dev );
+
+	if( iRet != 0 )
+		goto NOT_FOUND_AIO_PRODUCT;
+	///// Ver 1.2.3 end
+
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;

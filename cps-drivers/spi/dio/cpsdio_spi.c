@@ -76,7 +76,7 @@ CPS_SPI_SET_PACKET(	\
 #define CPSDIO_SPI_MINOR 0
 #define CPSDIO_SPI_NUM_DEVS 1
 #define CPSDIO_SPI_DRIVER_NAME	"cpsdio"
-#define DRV_VERSION "0.0.4"
+#define DRV_VERSION "0.0.5"
 #define max_speed 6000000
 
 /*	Define the name of the device and sysfs class name*/
@@ -391,7 +391,7 @@ static long cpsdio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			}
 			mutex_lock( &data->lock );
-			lRet = cpsdio_write_output(spi, ioc.port, 1, ioc.val);
+			lRet = cpsdio_write_output(spi, ioc.port, 1, (unsigned short)ioc.val);
 			mutex_unlock( &data->lock );
 
 			if( lRet ) return lRet;

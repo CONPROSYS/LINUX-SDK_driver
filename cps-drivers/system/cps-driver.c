@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.3
+ * Version 1.1.4
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.3"
+#define DRV_VERSION	"1.1.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -2564,12 +2564,12 @@ static int contec_mcs341_child_unit_number_show(struct device_driver *drvf, char
 static int contec_mcs341_dio0_direction_show(struct device_driver *drvf, char *buf )
 {
 	unsigned long ulVal = 0;
-	unsigned char bVal = 0;
+	unsigned int uiVal = 0;
 	int cnt = 0;
 
 	for(cnt = 0;cnt < 4;cnt ++ ){
-		contec_mcs341_controller_getDioDirection(cnt , (int *)&bVal );
-		ulVal |= (bVal << cnt);
+		contec_mcs341_controller_getDioDirection(cnt , (int *)&uiVal );
+		ulVal |= (uiVal << cnt);
 	}
 
 	return sprintf(buf,"%lx", ulVal);

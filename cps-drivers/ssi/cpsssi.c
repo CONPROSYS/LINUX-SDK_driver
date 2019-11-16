@@ -996,6 +996,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_get_temprature((unsigned long)dev->baseAddr , ioc.ch, &valdw );
 					cpsssi_4p_set_channeldata_lastStatus(ioc.ch, pData, valdw);
@@ -1014,6 +1018,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_set_start((unsigned long)dev->baseAddr , ioc.ch );
 					spin_unlock_irqrestore(&dev->lock, flags);
@@ -1101,9 +1109,14 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
-					}					
+					}
+					
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
-					valw = ioc.ch;
+					valw = (unsigned short) ioc.ch;					
 					valdw = ioc.val;
 					cpsssi_4p_set_channeldata_basic( valw, pData, valdw );
 
@@ -1119,6 +1132,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+					
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_command_4p_get_channel( (unsigned long)dev->baseAddr, valw, &valdw );
@@ -1140,6 +1158,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.ch;
@@ -1156,6 +1179,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_4p_get_channeldata_offset( dev->node, valw, pData, &valb );
@@ -1177,6 +1205,9 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
 					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.val;
@@ -1201,6 +1232,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
+
+					if( ioc.ch >= dev->data.ssiChannel ){
+						return -EFAULT;	
+					}
+										
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = (unsigned short) ioc.ch;break;
@@ -1410,8 +1446,8 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 
 	return 0;
 
-NOT_CHANNELDATA_ALLOCATION:
-	kfree(dev->data.ChannelData);
+//NOT_CHANNELDATA_ALLOCATION:
+//	kfree(dev->data.ChannelData);
 
 NOT_FOUND_SSI_PRODUCT:
 	cps_common_mem_release( dev->localAddr,
