@@ -2,7 +2,7 @@
 	@file cps-iolib.c
 	@brief CONPROSYS IO-LIB Driver with CPS-MCS341.
 	@author Syunsuke Okamoto <okamoto@contec.jp>
-	@par Version 2.0.0
+	@par Version 2.0.1
 	@par Copyright 2015  CONTEC Co., Ltd.
 	@par License : GPL Ver.2
 **/
@@ -46,7 +46,7 @@
 #include "cps_ids.h"
 #include "cps_extfunc.h"
 
-#define DRV_VERSION	"2.0.0"
+#define DRV_VERSION	"2.0.1"
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("CONTEC I/O Driver for CPS-MCS341 (implements cps-driver)");
@@ -109,8 +109,9 @@ static unsigned int ref_count;	///< reference Count
 static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
 	struct cpsio_data *dev = filp->private_data;
-	unsigned char valb;
-	unsigned short valw;
+	unsigned char valb = 0;
+	unsigned short valw = 0;
+	long status = 0;
 
 	struct cpsio_ioctl_arg ioc;
 	struct cpsio_ioctl_string_arg ioc_str;
@@ -128,14 +129,14 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 				return -EFAULT;
 			}
 
-			if( ioc.addr >= CPS_IO_MAX_AREAS )
-				return -EFAULT;	
-
-			read_lock(&dev->lock);
-			contec_mcs341_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
-			//cps_common_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
-			read_unlock(&dev->lock);
-
+			if( ioc.addr >= CPS_IO_MAX_AREAS ){
+				status = -EFAULT;	
+			}else{
+				read_lock(&dev->lock);
+				contec_mcs341_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
+				//cps_common_inpw( (unsigned long)(map_baseaddr + ioc.addr), &valw );
+				read_unlock(&dev->lock);
+			}
 			ioc.val = valw;
 			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 				return -EFAULT;
@@ -171,14 +172,15 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 				return -EFAULT;
 			}
 
-			if( ioc.addr >= CPS_IO_MAX_AREAS )
-				return -EFAULT;	
-
-			read_lock(&dev->lock);
-			contec_mcs341_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
-			//cps_common_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
-			read_unlock(&dev->lock);
-
+			if( ioc.addr >= CPS_IO_MAX_AREAS ){
+				status = -EFAULT;	
+			}else{
+				read_lock(&dev->lock);
+				contec_mcs341_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
+				//cps_common_inpb( (unsigned long)(map_baseaddr + ioc.addr), &valb );
+				read_unlock(&dev->lock);
+			}
+			
 			ioc.val = (unsigned short) valb;
 			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 				return -EFAULT;
@@ -225,7 +227,7 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 			break;					
 	}
 
-	return 0;
+	return status;
 }
 
 /**

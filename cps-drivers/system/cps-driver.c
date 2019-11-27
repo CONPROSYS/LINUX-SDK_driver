@@ -352,10 +352,7 @@ static void __contec_cps_before_shutdown_wait_devices( void )
 static void contec_mcs341_inpb(unsigned long addr, unsigned char *valb )
 {
 	unsigned long flags = 0;
-
 	*valb = 0;
-	if (addr < map_baseaddr || addr >= map_baseaddr + 0x100 * (deviceNumber + 1 ) )
-		return;
 
 	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_inpb( addr, valb );
@@ -398,6 +395,8 @@ EXPORT_SYMBOL_GPL(contec_mcs341_outb);
 static void contec_mcs341_inpw(unsigned long addr, unsigned short *valw )
 {
 	unsigned long flags;
+
+	*valw = 0;
 
 	spin_lock_irqsave(&mcs341_access_lock, flags);	
 	cps_common_inpw( addr, valw );

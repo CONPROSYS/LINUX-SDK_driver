@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.5.0.0 (2019/10/24)
+* Version : 1.5.1.0 (2019/11/27)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -66,18 +66,22 @@
         * Version 1.0.13
     * system (Base)
         * Version 1.1.4
-    * io (iolib)
-        * Version 2.0.0         
+    * io (iolib wrapper)
+        * Version 2.0.1         
     * spi/dio (Digital Input/Output)
         * Version 0.0.5
 
-* cps-iolib ( CPS-MCS341 I/O Driver Modules )
+* cps-iolib ( CPS-MCS341 Direct I/O Driver Modules )
     * version 1.0.6
     
     > Caution : When this driver is loading, cps-driver can not run. 
 
     
 ## Change logs
+* Ver 1.5.1.0
+    * cps-io Ver.2.0.0 -> Ver.2.0.1
+        * Fixed the cps-io read i/o control command returns value 0 when  the address area over. 
+
 * Ver 1.5.0.0
     * cpsssi Ver.1.0.12 -> 1.0.13
         * Fixed cpsssi_ioctl function. When the value of channels sets over maximum value of channels, this funciton returned -EFAULT.
