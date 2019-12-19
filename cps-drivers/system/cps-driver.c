@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.4
+ * Version 1.1.5
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.4"
+#define DRV_VERSION	"1.1.5"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -1212,7 +1212,7 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
 	);
 
-	if( child_unit != CPS_CHILD_UNIT_NONE ){
+	if( childType != CPS_CHILD_UNIT_NONE ){
 
 		// POWER ON ( 24V <USB> )
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
@@ -1321,7 +1321,7 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitExit(unsigned int chil
 		break;
 	}
 
-	if( child_unit != CPS_CHILD_UNIT_NONE ){
+	if( childType != CPS_CHILD_UNIT_NONE ){
 
 		// RESET ON
 		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
