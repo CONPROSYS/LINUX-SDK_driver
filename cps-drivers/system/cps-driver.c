@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.5
+ * Version 1.2.1
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.5"
+#define DRV_VERSION	"1.2.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -180,7 +180,7 @@ MODULE_PARM_DESC(reset_button_check_mode, "Reset Button changes GPIO Mode.( 1:En
 // 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add (Ver.1.0.7)
 static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
 module_param(child_unit, uint, 0644 );
-MODULE_PARM_DESC(child_unit, "Enable Initialize Child Unit.[ 1:SL8084T 2:RS422A/485 3:CMM-920GP2 4:HL8548 5:ES920LR]");
+MODULE_PARM_DESC(child_unit, "Enable Initialize Child Unit.[ 1:SL8084T 2:RS422A/485 3:CMM-920GP2 4:HL8548 5:ES920LR 6:LARA-R2 7:EC25 ]");
 
 // 2016.02.19 watchdog_timer (Not MCS341 Series Hardware)
 static unsigned int watchdog_timer_msec = 0;///< watchdog mode ( 0..None, otherwise:watchdog on )
@@ -716,6 +716,85 @@ static unsigned char contec_mcs341_controller_setDoValue( int value ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDoValue);
 
+/**
+	@~English
+	@brief MCS341 does hardware reset of child unit.
+	@param value : reset = 1
+	@~Japanese
+	@brief MCS341 子基板Hardware Reset処理
+	@param value  : リセット = 1
+**/
+static unsigned char contec_mcs341_controller_setExtend_Reset( int value ){
+
+	if (value) {
+		switch (child_unit) {
+		case CPS_CHILD_UNIT_INF_MC341B_A0:		// Quectel EC25
+			// RESET_3V3(pin37) : On
+			mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+			contec_mcs341_controller_setSystemInit();
+
+			// wait 200ms
+			contec_cps_micro_delay_sleep(200 * USEC_PER_MSEC, 0);
+
+			// RESET_3V3(pin37) : Off
+			mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+			contec_mcs341_controller_setSystemInit();
+			break;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_setExtend_Reset);
+
+/**
+	@~English
+	@brief MCS341 Controller's Digital Output Values.
+	@param value : values ( from 0 to 15 )
+	@~Japanese
+	@brief MCS341 Controllerのデジタル出力の値を設定する関数
+	@param value  : 出力値 ( 0から 15まで )
+**/
+static unsigned char contec_mcs341_controller_setExtend_3G_IO3_Value( int value ){
+
+	if (value) {
+		// 3G_IO3 (pin22) : On
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	}
+	else {
+		// 3G_IO3 (pin22) : Off
+		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	}
+	contec_mcs341_controller_setSystemInit();
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_setExtend_3G_IO3_Value);
+
+	/**
+	@~English
+	@brief MCS341 Controller's Digital Output Values.
+	@param value : values ( from 0 to 15 )
+	@~Japanese
+	@brief MCS341 Controllerのデジタル出力の値を設定する関数
+	@param value  : 出力値 ( 0から 15まで )
+**/
+static unsigned char contec_mcs341_controller_setExtend_3G_IO4_Value( int value ){
+
+	if (value) {
+		// 3G_IO4 (pin23) : On
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+	}
+	else {
+		// 3G_IO4 (pin23) : Off
+		mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+	}
+	contec_mcs341_controller_setSystemInit();
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_setExtend_3G_IO4_Value);
+
 
 /***** GET Paramater's ***************/
 /**
@@ -1199,6 +1278,121 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 	@param childType: 子基板番号
 	@return 成功 0, 失敗 0以外.
 **/
+static unsigned int _contec_mcs341_controller_childunit_init_mc341b_90( int isUsedDelay)
+{
+	#define INIT_DELAY_MSEC		100
+
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_OUTPUT,
+		CPS_MCS341_SETPINMODE_3G4_OUTPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_CTS,
+		CPS_MCS341_SETPINMODE_RTSSUB_RTS
+	);	
+
+	// PWR_ON_N_3V3(pin22)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// LDO_SHUTDOWN(pin23)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// RESET_3V3(pin37)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+	contec_mcs341_controller_setSystemInit();
+
+	// POWER ON ( 24V <USB> ) (pin36)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+	contec_mcs341_controller_setSystemInit();
+
+	// Wait
+	contec_cps_micro_delay_sleep(INIT_DELAY_MSEC * USEC_PER_MSEC, isUsedDelay);
+
+	// RESET(pin22)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// LDO_SHUTDOWN(pin23)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// RESET(pin37)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+	contec_mcs341_controller_setSystemInit();
+
+	child_unit_enable = 1;
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function is CPS-Child Devices INF-MC341B-A0 Initialize.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板 INF-MC341B-A0 を初期化する関数。
+	@param isUsedDelay: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUsedDelay)
+{
+
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_OUTPUT,
+		CPS_MCS341_SETPINMODE_3G4_OUTPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_CTS,
+		CPS_MCS341_SETPINMODE_RTSSUB_RTS
+	);	
+
+	// RESET_3V3(pin37) : Off
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+
+	// PWR_ON_N_3V3(pin22) : Off
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+
+	// POWER ON ( 24V <USB> ) (pin36) : On
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+	contec_mcs341_controller_setSystemInit();
+
+	// wait 1000ms
+	contec_cps_micro_delay_sleep(1000 * USEC_PER_MSEC, isUsedDelay);
+
+	if (child_unit_enable == 1) {
+		// ２重初期化抑制
+		return 0;
+	}
+
+	// PWR_ON_N_3V3(pin22) : On
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// wait 500ms
+	contec_cps_micro_delay_sleep(500 * USEC_PER_MSEC, isUsedDelay);
+
+	// PWR_ON_N_3V3(pin22) : Off
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	//
+	// USB devices (/dev/ttyUSB0 - /dev/ttyUSB3) appear after 13 sec
+	// 13秒後にUSBデバイス(/dev/ttyUSB0 - /dev/ttyUSB3)が現れる
+	//
+
+	child_unit_enable = 1;
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function is CPS-Child Devices Initialize.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
 static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int childType, int isUsedDelay)
 {
 	
@@ -1212,11 +1406,15 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
 	);
 
+	if( childType == CPS_CHILD_UNIT_INF_MC341B_90 ){
+		return _contec_mcs341_controller_childunit_init_mc341b_90(isUsedDelay);
+	}
+		return _contec_mcs341_controller_childunit_init_mc341b_A0(isUsedDelay);
+	}
+
 	if( childType != CPS_CHILD_UNIT_NONE ){
 
-		// POWER ON ( 24V <USB> )
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
-		contec_mcs341_controller_setSystemInit();
 		// Wait ( 5sec )
 		contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
 
@@ -1299,7 +1497,113 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
 
 /**
 	@~English
-	@brief This function is CPS-Child Devices Initialize.
+	@brief This function is CPS-Child Devices Exit.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_90( int isUsedDelay)
+{
+	#define PWROFF_REP_DELAY_MSEC	1500
+	#define PWROFF_DELAY_MSEC		3000
+	#define EXT_DELAY_MSEC			1000
+
+	// PWR_ON_N_3V3(pin22)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// Wait ( 1.5sec )
+	contec_cps_micro_delay_sleep(PWROFF_REP_DELAY_MSEC * USEC_PER_MSEC, isUsedDelay);
+
+	// PWR_ON_N_3V3(pin22)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// Wait ( 3.0sec )
+	contec_cps_micro_delay_sleep(PWROFF_DELAY_MSEC * USEC_PER_MSEC, isUsedDelay);
+
+	// PWR_ON_N_3V3(pin22)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// Wait ( 1sec )
+	contec_cps_micro_delay_sleep(EXT_DELAY_MSEC * USEC_PER_MSEC, isUsedDelay);
+
+	// LDO_SHUTDOWN(pin23)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// RESET_3V3(pin37)
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+	contec_mcs341_controller_setSystemInit();
+
+	// POWER ON ( 24V <USB> ) (pin36)
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+	contec_mcs341_controller_setSystemInit();
+
+	// init pin mode
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_INPUT,
+		CPS_MCS341_SETPINMODE_3G4_INPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
+		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
+	);
+
+	child_unit_enable = 0;
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function is CPS-Child Devices Exit.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_A0( int isUsedDelay)
+{
+
+	// PWR_ON_N_3V3(pin22) : On
+	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// wait 700ms ( >= 650ms )
+	contec_cps_micro_delay_sleep(700 * USEC_PER_MSEC, isUsedDelay);
+
+	// PWR_ON_N_3V3(pin22) : Off
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
+	contec_mcs341_controller_setSystemInit();
+
+	// wait 29.5sec
+	contec_cps_micro_delay_sleep(29500 * USEC_PER_MSEC, isUsedDelay);
+
+	// POWER ON ( 24V <USB> ) (pin36) : Off
+	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+	contec_mcs341_controller_setSystemInit();
+
+	// init pin mode
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_INPUT,
+		CPS_MCS341_SETPINMODE_3G4_INPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
+		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
+	);
+
+	child_unit_enable = 0;
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function is CPS-Child Devices Exit.
 	@param childType: Child Board Type
 	@return Success 0 , Failed not 0.
 	@~Japanese
@@ -1311,6 +1615,13 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitExit(unsigned int chil
 {
 
 	DEBUG_MODULE_PARAM("child unit %d\n", childType );
+
+	if( childType == CPS_CHILD_UNIT_INF_MC341B_90 ){
+		return _contec_mcs341_controller_childunit_exit_mc341b_90(isUsedDelay);
+	}
+	else if( childType == CPS_CHILD_UNIT_INF_MC341B_A0 ){
+		return _contec_mcs341_controller_childunit_exit_mc341b_A0(isUsedDelay);
+	}
 
 	// GPIO(0_23) Low Settings
 	switch( childType ){
@@ -2448,6 +2759,89 @@ static int contec_mcs341_dio0_do_value_store(struct device_driver *drvf, const c
 	return strnlen(buf, count);
 }
 
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 DIOの DO をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_extend_reset_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned char bVal;
+	int ret;
+
+	ret = kstrtou8(buf, 16, &bVal);
+
+	if( !ret ){
+		contec_mcs341_controller_setExtend_Reset(bVal);
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 3G CN IO3 をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_extend_3g_io3_value_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned char bVal;
+	int ret;
+
+	ret = kstrtou8(buf, 16, &bVal);
+
+	if( !ret ){
+		contec_mcs341_controller_setExtend_3G_IO3_Value(bVal);
+	}
+
+	return strnlen(buf, count);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 3G CN IO4 をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+**/
+static int contec_mcs341_extend_3g_io4_value_store(struct device_driver *drvf, const char *buf, size_t count )
+{
+	unsigned char bVal;
+	int ret;
+
+	ret = kstrtou8(buf, 16, &bVal);
+
+	if( !ret ){
+		contec_mcs341_controller_setExtend_3G_IO4_Value(bVal);
+	}
+
+	return strnlen(buf, count);
+}
 
 /**
 	@~English
@@ -2746,6 +3140,69 @@ static int contec_mcs341_fpga_version_show(struct device_driver *drvf, char *buf
 	return sprintf(buf,"%d", bVal);
 }
 
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 extend_resetの出力値(エコーバック)をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_extend_reset_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = (mcs341_systeminit_reg & CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET) >> 3;
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 extend_3g_io3の出力値(エコーバック)をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_extend_3g_io3_value_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = (mcs341_systeminit_reg & CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT) >> 4;
+
+	return sprintf(buf,"%x", bVal);
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 extend_3g_io4の出力値(エコーバック)をデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_extend_3g_io4_value_show(struct device_driver *drvf, char *buf )
+{
+	unsigned char bVal = 0;
+
+	bVal = (mcs341_systeminit_reg & CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT) >> 5;
+
+	return sprintf(buf,"%x", bVal);
+}
+
 
 static DRIVER_ATTR(led_status1, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
 		contec_mcs341_led_status1_show, contec_mcs341_led_status1_store);
@@ -2775,6 +3232,12 @@ static DRIVER_ATTR(product_revision, S_IRUSR | S_IRGRP | S_IROTH,
 		contec_mcs341_product_version_show, NULL );
 static DRIVER_ATTR(fpga_revision, S_IRUSR | S_IRGRP | S_IROTH,
 		contec_mcs341_fpga_version_show, NULL );
+static DRIVER_ATTR(extend_reset,  S_IWUSR |  S_IWGRP | S_IWOTH,
+		contec_mcs341_extend_reset_show, contec_mcs341_extend_reset_store);
+static DRIVER_ATTR(extend_3g_io3_value, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_extend_3g_io3_value_show, contec_mcs341_extend_3g_io3_value_store);
+static DRIVER_ATTR(extend_3g_io4_value, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
+		contec_mcs341_extend_3g_io4_value_show, contec_mcs341_extend_3g_io4_value_store);
 
 /**
 	@struct contec_mcs341_driver
@@ -2818,6 +3281,13 @@ static int contec_mcs341_create_driver_sysfs(struct platform_driver *drvp){
 	err |= driver_create_file(&drvp->driver, &driver_attr_stack_devices);
 	err |= driver_create_file(&drvp->driver, &driver_attr_product_revision);
 	err |= driver_create_file(&drvp->driver, &driver_attr_fpga_revision);
+	switch (child_unit) {
+	case CPS_CHILD_UNIT_INF_MC341B_A0:		// Quectel EC25 board
+		err |= driver_create_file(&drvp->driver, &driver_attr_extend_reset);
+		err |= driver_create_file(&drvp->driver, &driver_attr_extend_3g_io3_value);
+		err |= driver_create_file(&drvp->driver, &driver_attr_extend_3g_io4_value);
+		break;
+	}
 
 	return err;
 }
@@ -2848,6 +3318,13 @@ static void contec_mcs341_remove_driver_sysfs(struct platform_driver *drvp)
 	driver_remove_file(&drvp->driver, &driver_attr_stack_devices);
 	driver_remove_file(&drvp->driver, &driver_attr_product_revision);
 	driver_remove_file(&drvp->driver, &driver_attr_fpga_revision);
+	switch (child_unit) {
+	case CPS_CHILD_UNIT_INF_MC341B_A0:		// Quectel EC25 board
+		driver_remove_file(&drvp->driver, &driver_attr_extend_reset);
+		driver_remove_file(&drvp->driver, &driver_attr_extend_3g_io3_value);
+		driver_remove_file(&drvp->driver, &driver_attr_extend_3g_io4_value);
+		break;
+	}
 }
 
 
@@ -2951,6 +3428,11 @@ static void contec_mcs341_controller_exit(void)
 	if( !reset_button_check_mode ){
 		del_timer_sync(&mcs341_timer);		//2016.02.17 timer
 		gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
+	}
+
+	// 子基板終了処理
+	if( child_unit != CPS_CHILD_UNIT_NONE ){
+		contec_mcs341_controller_cpsChildUnitExit( child_unit );
 	}
 
 	__contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_RELEASE );// Ver 1.0.15

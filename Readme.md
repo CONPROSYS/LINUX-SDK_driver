@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.6.0.0 (2019/12/20)
+* Version : 1.6.0.0 (2020/06/03)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -17,6 +17,7 @@
 * [CPS-MCS341-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341-ds1-131/price/)
 * [CPS-MCS341G-DS1-130](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341g-ds1-130/price/)
 * [CPS-MCS341Q-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341q-ds1-131/price/)
+* CPS-MCS341G5-DS1-130
 
 ### Modules
 * Analog Input/Output
@@ -65,7 +66,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.1.5
+        * Version 1.2.1
     * io (iolib wrapper)
         * Version 2.0.1         
     * spi/dio (Digital Input/Output)
@@ -76,10 +77,11 @@
     
     > Caution : When this driver is loading, cps-driver can not run. 
 
-    
+
 ## Change logs
 * Ver 1.6.0.0
-    * cps-driver Ver.1.1.4 -> 1.1.5
+    * cps-driver Ver.1.1.4 -> Ver.1.2.1
+        * Add LTE Communication Controller.(CPS-MCS341G5-DS1-130)
         * Fixed. Change  from child_unit to ChildType in _contec_mcs341_controller_cpsChildUnitInit and _contec_mcs341_controller_cpsChildUnitExit function.
 
 * Ver 1.5.1.0

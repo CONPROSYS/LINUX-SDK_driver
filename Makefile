@@ -1,4 +1,7 @@
 subdirsall = cps-drivers cps-iolib
+ifeq ($(CPS_SDK_PRODUCT_TYPE),CPS-MCS341G5-DSX)
+  subdirs = cps-drivers cps-iolib
+endif
 ifeq ($(CPS_SDK_PRODUCT_TYPE),CPS-MCS341G-DSX)
   subdirs = cps-drivers cps-iolib
 endif
