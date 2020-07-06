@@ -1406,15 +1406,20 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
 	);
 
-	if( childType == CPS_CHILD_UNIT_INF_MC341B_90 ){
-		return _contec_mcs341_controller_childunit_init_mc341b_90(isUsedDelay);
-	}
-		return _contec_mcs341_controller_childunit_init_mc341b_A0(isUsedDelay);
+	switch ( childType ){
+		case CPS_CHILD_UNIT_INF_MC341B_90 :
+			return _contec_mcs341_controller_childunit_init_mc341b_90( isUsedDelay );	
+		case CPS_CHILD_UNIT_INF_MC341B_A0 :
+			return _contec_mcs341_controller_childunit_init_mc341b_A0( isUsedDelay );
+		default :
+			break;
 	}
 
 	if( childType != CPS_CHILD_UNIT_NONE ){
 
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+		contec_mcs341_controller_setSystemInit();	
+
 		// Wait ( 5sec )
 		contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
 
@@ -2498,7 +2503,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_deviceNum_get);
 	@brief MCS341 ベースアドレスから使用シリアル番号を取得する関数
 	@param baseAddr : ベースアドレス(このベースアドレスは仮想メモリアドレスではありません）
 	@par この関数はcpscomドライバのみ使用されています。
-	@return 成功  ターゲット戸なるシリアル番号
+	@return 成功  ターゲットとなるシリアル番号
 **/
 static unsigned char contec_mcs341_device_serial_channel_get( unsigned long baseAddr )
 {
