@@ -12,6 +12,9 @@ ifeq ($(CPS_SDK_PRODUCT_TYPE),CPS-MCS341Q-DSX)
   subdirs = cps-drivers cps-iolib
 endif
 
+ifeq ($(CPS_BUILD_TEST),ALL)
+  subdirs = $(subdirall)
+endif
 
 MAKE=make --no-print-directory 
 
