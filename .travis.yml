@@ -124,17 +124,17 @@ before_script:
       # echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
       curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | COVERITY_SCAN_PROJECT_NAME="${COVERITY_SCAN_PROJECT_NAME}" COVERITY_SCAN_NOTIFICATION_EMAIL="${COVERITY_SCAN_NOTIFICATION_EMAIL}" COVERITY_SCAN_BUILD_COMMAND="${COVERITY_SCAN_BUILD_COMMAND}" COVERITY_SCAN_BUILD_COMMAND_PREPEND="${COVERITY_SCAN_BUILD_COMMAND_PREPEND}" COVERITY_SCAN_BRANCH_PATTERN=${COVERITY_SCAN_BRANCH_PATTERN} bash || true
     fi
-  - cd $CPS_KERNEL_DIR
+  - cd ${CPS_KERNEL_DIR}
   - ls /usr/bin/arm* 
   - make distclean
-  - make defconfig "${CPS_SDK_TARGET_NAME}_defconfig"
+  - make defconfig "${CPS_SDK_PRODUCT_TYPE}.${CPS_SDK_LAN_TYPE}_defconfig"
   - make prepare
   - cd ./scripts
-  - make -C $CPS_KERNEL_DIR M=`pwd` modules
-  - cd $TRAVIS_BUILD_DIR/../
-  - ln -s $TRAVIS_BUILD_DIR driver
-  - ln -s $CPS_KERNEL_DIR kernel
-  - cd $TRAVIS_BUILD_DIR
+  - make -C ${CPS_KERNEL_DIR} M=`pwd` modules
+  - cd ${CPS_SDK_ROOTDIR}
+  - ln -s ${TRAVIS_BUILD_DIR} driver
+  - ln -s ${CPS_KERNEL_DIR} kernel
+  - cd ${TRAVIS_BUILD_DIR}
  
 script:
   - sudo make -j${JOB_NUMBER} 
