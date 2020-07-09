@@ -32,7 +32,7 @@ env:
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341-DSX
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341G-DSX
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341Q-DSX
-    - CPS_SDK_PRODUCT_TYPE=CPS-MCS341G5-DSX
+    #- CPS_SDK_PRODUCT_TYPE=CPS-MCS341G5-DSX
 
 # addons:
   # coverity_scan:
@@ -127,7 +127,7 @@ before_script:
   - cd ${CPS_KERNEL_DIR}
   - ls /usr/bin/arm* 
   - make distclean
-  - make defconfig "${CPS_SDK_PRODUCT_TYPE}.${CPS_SDK_LAN_TYPE}_defconfig"
+  - make defconfig "${CPS_SDK_TARGET_NAME}_defconfig"
   - make prepare
   - cd ./scripts
   - make -C ${CPS_KERNEL_DIR} M=`pwd` modules
