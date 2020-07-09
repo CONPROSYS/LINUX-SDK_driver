@@ -18,7 +18,7 @@ compiler:
   - arm-linux-gnueabi-gcc-5
   - arm-linux-gnueabi-gcc-6
   - arm-linux-gnueabi-gcc-7
-  - arm-linux-gnueabi-gcc-8 
+ # - arm-linux-gnueabi-gcc-8 
 
 env:
   global:
@@ -126,11 +126,11 @@ before_script:
     fi
   - cd $CPS_KERNEL_DIR
   - ls /usr/bin/arm* 
-  - make -j${JOB_NUMBER} distclean
-  - make -j${JOB_NUMBER} defconfig ${CPS_SDK_TARGET_NAME}_defconfig
-  - make -j${JOB_NUMBER} prepare
+  - make distclean
+  - make defconfig ${CPS_SDK_TARGET_NAME}_defconfig
+  - make prepare
   - cd ./scripts
-  - make -j${JOB_NUMBER} -C $CPS_KERNEL_DIR M=`pwd` modules
+  - make -C $CPS_KERNEL_DIR M=`pwd` modules
   - cd $TRAVIS_BUILD_DIR/../
   - ln -s $TRAVIS_BUILD_DIR driver
   - ln -s $CPS_KERNEL_DIR kernel
