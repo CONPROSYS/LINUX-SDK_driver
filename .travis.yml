@@ -126,20 +126,20 @@ before_script:
     fi
   - cd $CPS_KERNEL_DIR
   - ls /usr/bin/arm* 
-  - make -j$JOB_NUMBER distclean
-  - make -j$JOB_NUMBER defconfig ${CPS_SDK_TARGET_NAME}_defconfig
-  - make -j$JOB_NUMBER prepare
+  - make -j${JOB_NUMBER} distclean
+  - make -j${JOB_NUMBER} defconfig ${CPS_SDK_TARGET_NAME}_defconfig
+  - make -j${JOB_NUMBER} prepare
   - cd ./scripts
-  - make -j$JOB_NUMBER -C $CPS_KERNEL_DIR M=`pwd` modules
+  - make -j${JOB_NUMBER} -C $CPS_KERNEL_DIR M=`pwd` modules
   - cd $TRAVIS_BUILD_DIR/../
   - ln -s $TRAVIS_BUILD_DIR driver
   - ln -s $CPS_KERNEL_DIR kernel
   - cd $TRAVIS_BUILD_DIR
  
 script:
-  - sudo make -j$JOB_NUMBER 
+  - sudo make -j${JOB_NUMBER} 
   # - make release_copy
-  - sudo make -j$JOB_NUMBER  modules_install
+  - sudo make -j${JOB_NUMBER}  modules_install
 
 after_script:
   - sudo $TRAVIS_BUILD_DIR/cps-drivers/technical-report
