@@ -127,7 +127,7 @@ before_script:
   - cd $CPS_KERNEL_DIR
   - ls /usr/bin/arm* 
   - make -j$JOB_NUMBER distclean
-  - make -j$JOB_NUMBER defconfig ${CPS_SDK_PRODUCT_TYPE}_defconfig
+  - make -j$JOB_NUMBER defconfig ${CPS_SDK_TARGET_NAME}_defconfig
   - make -j$JOB_NUMBER prepare
   - cd ./scripts
   - make -j$JOB_NUMBER -C $CPS_KERNEL_DIR M=`pwd` modules
