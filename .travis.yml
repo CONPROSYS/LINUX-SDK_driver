@@ -97,10 +97,10 @@ before_install:
   - cd $TRAVIS_BUILD_DIR
   
   # export conprosys-sdk
-  - export CPS_SDK_ROOTDIR=$TRAVIS_BUILD_DIR/../
-  - export CPS_SDK_LAN_TYPE=novlan
-  - export CPS_SDK_TARGET_NAME=${CPS_SDK_PRODUCT_TYPE}.${CPS_SDK_LAN_TYPE}
-  - export CPS_SDK_INSTALL_FULL_DIR=${CPS_SDK_ROOT_DIR}/target/${CPS_SDK_TARGET_NAME}
+  - export CPS_SDK_ROOTDIR="$TRAVIS_BUILD_DIR/../"
+  - export CPS_SDK_LAN_TYPE="novlan"
+  - export CPS_SDK_TARGET_NAME="${CPS_SDK_PRODUCT_TYPE}.${CPS_SDK_LAN_TYPE}"
+  - export CPS_SDK_INSTALL_FULL_DIR="${CPS_SDK_ROOT_DIR}/target/${CPS_SDK_TARGET_NAME}"
 
   # install to use coverity scan
   - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
