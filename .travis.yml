@@ -137,12 +137,13 @@ before_script:
   - cd ${TRAVIS_BUILD_DIR}
  
 script:
+  - make clean
   - sudo make -j${JOB_NUMBER} 
   # - make release_copy
   - sudo make -j${JOB_NUMBER}  modules_install
 
 after_script:
-  - sudo $TRAVIS_BUILD_DIR/cps-drivers/technical-report
+  - sudo ${TRAVIS_BUILD_DIR}/cps-drivers/technical-report
   # - cd $TRAVIS_BUILD_DIR/driver/release/
   # - ./driver_version_check
 
