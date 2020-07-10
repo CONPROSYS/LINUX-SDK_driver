@@ -117,13 +117,6 @@ before_install:
   - export COVERITY_SCAN_BRANCH_PATTERN="Next_[0-9].[0-9].[0-9].[0-9]|master"
 
 before_script:
-  - |
-    if [ "${TRAVIS_JOB_NUMBER}" = "${TRAVIS_BUILD_NUMBER}.1" ]; then
-      # call Coverity Scan manually of addons.coverity_scan for first job only
-      export COVERITY_SCAN_BRANCH=1
-      # echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
-      curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | COVERITY_SCAN_PROJECT_NAME="${COVERITY_SCAN_PROJECT_NAME}" COVERITY_SCAN_NOTIFICATION_EMAIL="${COVERITY_SCAN_NOTIFICATION_EMAIL}" COVERITY_SCAN_BUILD_COMMAND="${COVERITY_SCAN_BUILD_COMMAND}" COVERITY_SCAN_BUILD_COMMAND_PREPEND="${COVERITY_SCAN_BUILD_COMMAND_PREPEND}" COVERITY_SCAN_BRANCH_PATTERN=${COVERITY_SCAN_BRANCH_PATTERN} bash || true
-    fi
   - cd ${CPS_KERNEL_DIR}
   - ls /usr/bin/arm* 
   - make distclean
@@ -135,7 +128,14 @@ before_script:
   - ln -s ${TRAVIS_BUILD_DIR} driver
   - ln -s ${CPS_KERNEL_DIR} kernel
   - cd ${TRAVIS_BUILD_DIR}
- 
+  - |
+    if [ "${TRAVIS_JOB_NUMBER}" = "${TRAVIS_BUILD_NUMBER}.1" ]; then
+      # call Coverity Scan manually of addons.coverity_scan for first job only
+      export COVERITY_SCAN_BRANCH=1
+      # echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+      curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | COVERITY_SCAN_PROJECT_NAME="${COVERITY_SCAN_PROJECT_NAME}" COVERITY_SCAN_NOTIFICATION_EMAIL="${COVERITY_SCAN_NOTIFICATION_EMAIL}" COVERITY_SCAN_BUILD_COMMAND="${COVERITY_SCAN_BUILD_COMMAND}" COVERITY_SCAN_BUILD_COMMAND_PREPEND="${COVERITY_SCAN_BUILD_COMMAND_PREPEND}" COVERITY_SCAN_BRANCH_PATTERN=${COVERITY_SCAN_BRANCH_PATTERN} bash || true
+    fi
+
 script:
   - make clean
   - sudo make -j${JOB_NUMBER} 
