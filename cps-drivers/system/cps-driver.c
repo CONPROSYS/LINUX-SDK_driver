@@ -1354,7 +1354,7 @@ static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUs
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
 	contec_mcs341_controller_setSystemInit();
 
-	// wait 1000ms
+	// wait 1000ms ( EG25 data sheet is >= 30ms )
 	contec_cps_micro_delay_sleep(1000 * USEC_PER_MSEC, isUsedDelay);
 
 	if (child_unit_enable == 1) {
@@ -1366,8 +1366,8 @@ static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUs
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
 	contec_mcs341_controller_setSystemInit();
 
-	// wait 500ms
-	contec_cps_micro_delay_sleep(500 * USEC_PER_MSEC, isUsedDelay);
+	// wait 1000ms ( EG25 data sheet is >= 500ms )
+	contec_cps_micro_delay_sleep(1000 * USEC_PER_MSEC, isUsedDelay);
 
 	// PWR_ON_N_3V3(pin22) : Off
 	mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
@@ -1417,6 +1417,7 @@ static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int chil
 
 	if( childType != CPS_CHILD_UNIT_NONE ){
 
+		// POWER ON ( 24V <USB> )
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
 		contec_mcs341_controller_setSystemInit();	
 
@@ -1579,7 +1580,7 @@ static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_A0( int isUs
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G3_SETOUTPUT;
 	contec_mcs341_controller_setSystemInit();
 
-	// wait 700ms ( >= 650ms )
+	// wait 700ms ( EG25 data sheet is >= 650ms )
 	contec_cps_micro_delay_sleep(700 * USEC_PER_MSEC, isUsedDelay);
 
 	// PWR_ON_N_3V3(pin22) : Off
