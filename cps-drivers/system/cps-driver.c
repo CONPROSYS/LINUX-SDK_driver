@@ -3431,8 +3431,12 @@ static int contec_mcs341_controller_init(void)
 static void contec_mcs341_controller_exit(void)
 {
 
+	if( mcs341_timer.data != 0 ){
+		del_timer_sync(&mcs341_timer);
+	}
+
 	if( !reset_button_check_mode ){
-		del_timer_sync(&mcs341_timer);		//2016.02.17 timer
+		//del_timer_sync(&mcs341_timer);		//2016.02.17 timer
 		gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
 	}
 
