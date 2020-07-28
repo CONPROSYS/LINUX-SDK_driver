@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
 
 ## Features
-* Version : 1.4.1.3 (2019/10/10)
+* Version : 1.4.1.4 (2020/07/28)
 * GNU Public License Ver 2.0
 
 ## Support CONTEC Devices
@@ -59,7 +59,7 @@
     * ssi (Sensor Input)
         * Version 1.0.11
     * system (Base)
-        * Version 1.1.2.1
+        * Version 1.1.2.2
     * spi/dio (Digital Input/Output)
 
 * cps-iolib 
@@ -67,6 +67,10 @@
 
 
 ## Change logs
+* Ver.1.4.1.4
+    * cps-driver Ver.1.1.2.1 -> Ver.1.1.2.2
+        * The attribute of cps-driver adds the controller_indata.
+
 * Ver.1.4.1.3
 	* cpsaio Ver.1.2.1.1 -> 1.2.1.2
 		* Fixed.The cpsaio_init is checking front registers. (Degrade Ver.1.2.3)

@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.1.2.1
+ * Version 1.1.2.2
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.1.2.1"
+#define DRV_VERSION	"1.1.2.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -74,13 +74,13 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_EXITMEMORY(fmt...)        do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_ADDR_VAL_OUT(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_OUT(fmt...)        do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_ADDR_VAL_IN(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_IN(fmt...)        do { } while (0)
@@ -2619,6 +2619,30 @@ static int contec_mcs341_fpga_version_show(struct device_driver *drvf, char *buf
 	return sprintf(buf,"%d", bVal);
 }
 
+// V1.1.2.2
+static int contec_mcs341_controller_indata_show(struct device_driver *drvf, char *buf){
+
+	unsigned char bVal = 0;
+	int addr = 0;
+	int len = 0;
+
+	for( addr = 0;addr < 0x100; addr ++ ){
+		if( addr % 0x10 == 0x0 ){
+			len += sprintf(&buf[len] , "+%02x ", addr );
+		}
+		contec_mcs341_inpb(addr, &bVal);
+		len += sprintf(&buf[len], "%02x", bVal);
+		if( addr % 0x10 == 0xF ){
+			len += sprintf(&buf[len], "\n" );
+		}else{
+			len += sprintf(&buf[len], " " );			
+		}
+	}
+
+	return len;
+
+}
+
 
 static DRIVER_ATTR(led_status1, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
 		contec_mcs341_led_status1_show, contec_mcs341_led_status1_store);
@@ -2648,6 +2672,9 @@ static DRIVER_ATTR(product_revision, S_IRUSR | S_IRGRP | S_IROTH,
 		contec_mcs341_product_version_show, NULL );
 static DRIVER_ATTR(fpga_revision, S_IRUSR | S_IRGRP | S_IROTH,
 		contec_mcs341_fpga_version_show, NULL );
+// V1.1.2.2
+static DRIVER_ATTR(controller_indata, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_controller_indata_show, NULL );
 
 /**
 	@struct contec_mcs341_driver
@@ -2691,6 +2718,7 @@ static int contec_mcs341_create_driver_sysfs(struct platform_driver *drvp){
 	err |= driver_create_file(&drvp->driver, &driver_attr_stack_devices);
 	err |= driver_create_file(&drvp->driver, &driver_attr_product_revision);
 	err |= driver_create_file(&drvp->driver, &driver_attr_fpga_revision);
+	err |= driver_create_file(&drvp->driver, &driver_attr_controller_indata);	// V1.1.2.2
 
 	return err;
 }
@@ -2721,6 +2749,7 @@ static void contec_mcs341_remove_driver_sysfs(struct platform_driver *drvp)
 	driver_remove_file(&drvp->driver, &driver_attr_stack_devices);
 	driver_remove_file(&drvp->driver, &driver_attr_product_revision);
 	driver_remove_file(&drvp->driver, &driver_attr_fpga_revision);
+	driver_remove_file(&drvp->driver, &driver_attr_controller_indata);	// V1.1.2.2
 }
 
 
