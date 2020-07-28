@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.6.0.0 (2020/06/03)
+* Version : 1.6.0.1 (2020/07/28)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -79,6 +79,13 @@
 
 
 ## Change logs
+
+* Ver.1.6.0.1
+    * cps-driver Ver.1.2.1 -> Ver.1.2.2
+        * After the cps-driver loaded to set the "reset_button_check_mode = 1", the kernelpanic is occured running "modprobe -r."
+            It is fixed.
+
+
 * Ver 1.6.0.0
     * cps-driver Ver.1.1.4 -> Ver.1.2.1
         * Add LTE Communication Controller.(CPS-MCS341G5-DS1-130)
