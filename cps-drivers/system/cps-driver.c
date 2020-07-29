@@ -960,7 +960,10 @@ static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 
 static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	unsigned char valb = 0;
+	unsigned char checkDeviceMaxId = 0;
 	unsigned int timeout = 0;
+	unsigned char deviceCount = 0; // V1.1.2.2 
+	unsigned char isDeviceIdFailed = 0; // V.1.1.2.2
 
 	//cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 	//contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
@@ -1005,7 +1008,7 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
 			CPS-MCS341 must wait 1 msec.
 		*/ 		
-		contec_cps_micro_delay_sleep( (1 * USEC_PER_MSEC), isUsedDelay );
+		//contec_cps_micro_delay_sleep( (1 * USEC_PER_MSEC), isUsedDelay );
 
 		//Memory Initialize
 		deviceNumber = contec_mcs341_controller_getDeviceNum();
@@ -1035,6 +1038,24 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
 		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END)  );
+
+		//V1.1.2.2 Address +X05 read Max Connected Device Number Check 
+		for( deviceCount  = 0; deviceCount < deviceNumber ; deviceCount ++ ){
+			//checkDeviceMaxId = contec_mcs341_device_max_connect_devices_get(deviceCount); // New driver 
+			cps_common_inpb( (unsigned long)(map_devbaseaddr[deviceCount] + CPS_DEVICE_COMMON_MAXCONNECT_ID_ADDR), &checkDeviceMaxId );
+			if ( deviceNumber != checkDeviceMaxId ){
+				printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +%x05 Hex Read %x (Hex)!! \n", checkDeviceMaxId );
+				isDeviceIdFailed = 1;
+				return -EIO;
+			}
+
+		}
+
+		// V1.1.2.2
+		if( isDeviceIdFailed ){
+			__contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_RELEASE );
+		}
+
 	}else{
 		//Memory Initialize
 		deviceNumber = contec_mcs341_controller_getDeviceNum();
@@ -1610,6 +1631,29 @@ static unsigned short contec_mcs341_device_physical_id_get( int dev ){
 	return valw;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_physical_id_get);
+
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device Physical ID.
+	@param dev : Target DeviceNumber ( < deviceNumber )
+	@return Success : product Id , Fail : 0
+	@~Japanese
+	@brief MCS341 ターゲットの物理接続番号を取得する関数。
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@return 成功  物理ID, 失敗 0
+**/
+static unsigned char contec_mcs341_device_max_connect_devices_get( int dev ){
+
+	unsigned char valb;
+	
+	if( dev >= deviceNumber ) return 0;
+
+	contec_mcs341_device_inpb( dev, CPS_DEVICE_COMMON_MAXCONNECT_ID_ADDR, &valb );
+//	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PHYSICALID_ADDR), &valw );
+
+	return valb;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_max_connect_devices_get);
 
 /**
 	@~English
@@ -2825,6 +2869,8 @@ static int contec_mcs341_controller_init(void)
 				map_baseaddr ,
 				CPS_COMMON_MEM_REGION);
 		}
+
+		
 	}
 
 	if( !ret ){
