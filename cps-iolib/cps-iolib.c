@@ -2,13 +2,13 @@
 	@file cps-iolib.c
 	@brief CONPROSYS IO-LIB Driver with CPS-MCS341.
 	@author Syunsuke Okamoto <okamoto@contec.jp>
-	@par Version 1.0.5
+	@par Version 1.0.5.1
 	@par Copyright 2015  CONTEC Co., Ltd.
 	@par License : GPL Ver.2
 **/
 /*
  *  cps-iolib Driver with CPS-MCS341.
- * Version 1.0.5
+ * Version 1.0.5.1
  *
  *  I/O Control CPS-MCS341 Series (only) Driver by CONTEC .
  *
@@ -43,7 +43,9 @@
 
 #include "cps_common_io.h"
 
-#define DRV_VERSION	"1.0.5"
+#include <linux/gpio.h>
+
+#define DRV_VERSION	"1.0.5.1"
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("CONTEC I/O Driver for CPS-MCS341");
@@ -54,6 +56,11 @@ MODULE_VERSION(DRV_VERSION);
 #include "cps-iolib.h"
 
 #define CPSIO_DRIVER_NAME "cps-iolib"
+
+static unsigned char DriverResetHardware = 1;
+module_param(DriverResetHardware, uint, 0644 );
+MODULE_PARM_DESC(DriverResetHardware, "This driver resets all hardware due to hardware error. (1: Enable 0: Disable ");
+
 
 /**
 	@struct cpsio_data
@@ -83,6 +90,8 @@ static void __iomem *map_baseaddr ;	///< iomap Base Address
 
 static unsigned int ref_count;	///< reference Count
 
+#define CPS_CONTROLLER_MCS341_RESET_POUT GPIO_TO_PIN( 3, 9 )		//GPIO 105
+
 /***** file operation functions *******************************/
 
 /**
@@ -105,8 +114,50 @@ static long cpsio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg 
 	unsigned char valb;
 	unsigned short valw;
 
+	unsigned char deviceNumber = 0;
+	unsigned char chkDeviceNumber = 0;
+	unsigned int count = 0;
+	unsigned char ErrorFpgaAccess = 0;
+
 	struct cpsio_ioctl_arg ioc;
 	memset( &ioc, 0 , sizeof(ioc) );
+
+
+	if( (ioc.addr / 0x100) > 0 ){
+		cps_common_inpb( (unsigned long)(map_baseaddr + 4), &deviceNumber );
+
+		for( count = 0 ; count < 3; count ++ ){
+			msleep_interruptible( 1 );
+			cps_common_inpb( (unsigned long)(map_baseaddr + 4), &chkDeviceNumber );
+			
+			if( chkDeviceNumber != deviceNumber ) {
+				ErrorFpgaAccess = 1;
+			}
+		}
+
+		chkDeviceNumber = 0;
+
+		//V1..0.5.1 Address +X05 read Max Connected Device Number Check 
+		cps_common_inpb( (unsigned long)(map_baseaddr + 0x100 * ( ioc.addr / 0x100 ) + 0x05 ), &chkDeviceNumber );
+
+		if( chkDeviceNumber != deviceNumber ) {
+			ErrorFpgaAccess = 1;
+		}
+
+		if( ErrorFpgaAccess ){
+			WARN_ON("cps-iolib : Failed FPGA Device Access.");	
+			if( DriverResetHardware ){
+				printk(KERN_ERR"cps-iolib :[ERROR:IOCTL] HardwareReset Ready!! \n" );
+
+				if( !gpio_is_requested(CPS_CONTROLLER_MCS341_RESET_POUT)){
+					gpio_request(CPS_CONTROLLER_MCS341_RESET_POUT, "cps_mcs341_reset_out");
+				}
+				gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
+				while ( 1 )
+					cpu_relax();
+			}
+		}
+	}
 
 	switch( cmd ){
 

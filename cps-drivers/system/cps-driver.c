@@ -74,13 +74,13 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_EXITMEMORY(fmt...)        do { } while (0)
 #endif
 
-#if 1
+#if 0
 #define DEBUG_ADDR_VAL_OUT(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_OUT(fmt...)        do { } while (0)
 #endif
 
-#if 1
+#if 0
 #define DEBUG_ADDR_VAL_IN(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_IN(fmt...)        do { } while (0)
@@ -187,6 +187,9 @@ static unsigned int watchdog_timer_msec = 0;///< watchdog mode ( 0..None, otherw
 //module_param(watchdog_timer_msec, uint, 0644 );
 //MODULE_PARM_DESC(watchdog_timer_msec, "Enable Watchdog Mode.( 0..None, otherwise:watchdog on )");
 
+static unsigned char DriverResetHardware = 1;
+module_param(DriverResetHardware, uint, 0644 );
+MODULE_PARM_DESC(DriverResetHardware, "This driver resets all hardware due to hardware error. (1: Enable 0: Disable ");
 
 static unsigned char deviceNumber;		///< device number
 
@@ -963,7 +966,9 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	unsigned char checkDeviceMaxId = 0;
 	unsigned int timeout = 0;
 	unsigned char deviceCount = 0; // V1.1.2.2 
+	unsigned char readDeviceNumberCount = 0; // V1.1.2.2	
 	unsigned char isDeviceIdFailed = 0; // V.1.1.2.2
+	unsigned char checkDeviceNumber = 0; // V.1.1.2.2
 
 	//cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 	//contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
@@ -1012,6 +1017,14 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 
 		//Memory Initialize
 		deviceNumber = contec_mcs341_controller_getDeviceNum();
+
+
+		for(readDeviceNumberCount = 0; readDeviceNumberCount < 3; readDeviceNumberCount ++){
+			contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
+			checkDeviceNumber = contec_mcs341_controller_getDeviceNum();
+			if( deviceNumber != checkDeviceNumber )	return -EIO;
+		}
+
 		DEBUG_INITMEMORY(KERN_INFO " cps-system : device number : %d \n", deviceNumber );
 		if( __contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_ALLOCATE ) ){
 			return -ENOMEM;
@@ -1040,20 +1053,20 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END)  );
 
 		//V1.1.2.2 Address +X05 read Max Connected Device Number Check 
+		
 		for( deviceCount  = 0; deviceCount < deviceNumber ; deviceCount ++ ){
 			//checkDeviceMaxId = contec_mcs341_device_max_connect_devices_get(deviceCount); // New driver 
 			cps_common_inpb( (unsigned long)(map_devbaseaddr[deviceCount] + CPS_DEVICE_COMMON_MAXCONNECT_ID_ADDR), &checkDeviceMaxId );
 			if ( deviceNumber != checkDeviceMaxId ){
-				printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +%x05 Hex Read %x (Hex)!! \n", checkDeviceMaxId );
+				printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +%x05 Hex Read %x (Hex). but DeviceNumber = %x is not equal.\n", (deviceCount + 1), checkDeviceMaxId, deviceNumber );
 				isDeviceIdFailed = 1;
-				return -EIO;
 			}
-
 		}
 
 		// V1.1.2.2
 		if( isDeviceIdFailed ){
 			__contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_RELEASE );
+			return -EIO;
 		}
 
 	}else{
@@ -1083,7 +1096,20 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	@return 成功 0, 失敗 0以外.
 **/
 static int contec_mcs341_controller_cpsDevicesInit(void){
-	return _contec_mcs341_controller_cpsDevicesInit( 0 );
+	int iRet = 0;
+	iRet  =  _contec_mcs341_controller_cpsDevicesInit( 0 );
+
+	if ( iRet == -EIO || iRet == -ENXIO )	{
+		WARN_ON("cps-driver : Failed FPGA Initialize.");		
+		if( DriverResetHardware ){
+			printk(KERN_ERR"cps-driver :[ERROR:INIT] HardwareReset Ready!! \n" );
+			gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
+			while ( 1 )
+				cpu_relax();
+		}
+	}
+
+	return iRet;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 
