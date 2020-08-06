@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.6.0.0 (2020/06/03)
+* Version : 1.6.1.0 (2020/08/06)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -66,7 +66,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.2.1
+        * Version 1.2.2
     * io (iolib wrapper)
         * Version 2.0.1         
     * spi/dio (Digital Input/Output)
@@ -79,6 +79,13 @@
 
 
 ## Change logs
+* Ver 1.6.1.0
+    * cps-driver Ver.1.2.1 -> Ver.1.2.2
+        * The attribute of cps-driver adds the controller_indata.
+        * When read ubnormal data for Controller IC, cps-driver resets own controller. 
+    * cps-iolib Ver 1.0.6 -> 1.0.7
+        * When the Controller IC was read ubnormal data , cps-driver resets own controller. 
+
 * Ver 1.6.0.0
     * cps-driver Ver.1.1.4 -> Ver.1.2.1
         * Add LTE Communication Controller.(CPS-MCS341G5-DS1-130)
