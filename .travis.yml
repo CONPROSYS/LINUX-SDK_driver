@@ -91,9 +91,9 @@ before_install:
   - travis_retry git clone --depth 1 --branch release https://github.com/CONPROSYS/linux-kernel_3.2.0.CONPROSYS.git $PWD/build
   - export CPS_KERNEL_DIR=$PWD/build
 
-  # Download the library master branch
+  # Download the library main branch
   - cd $TRAVIS_BUILD_DIR/../
-  - travis_retry git clone --depth 1 --branch master https://github.com/CONPROSYS/LINUX-SDK_library.git
+  - travis_retry git clone --depth 1 --branch main https://github.com/CONPROSYS/LINUX-SDK_library.git
   - cd $TRAVIS_BUILD_DIR
   
   # export conprosys-sdk
