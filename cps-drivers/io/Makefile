@@ -8,7 +8,7 @@ TARGET_ROOTFS   := rootfs
 endif
 
 EXTRA_CFLAGS	:= -DDEBUG=0
-EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include
+EXTRA_CFLAGS	+= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include -I$(CPS_SDK_ROOTDIR)/driver/cps-iolib
 
 #set architecture
 ifeq "${ARCH}" ""
