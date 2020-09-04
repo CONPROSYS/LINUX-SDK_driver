@@ -188,27 +188,54 @@ struct cpsaio_direct_command_arg{
 
 //#define CPS_AIO_AI_STATUS_MOTION_END					0x00008000
 
-///< ステータスマクロ
+/*!
+ @~English
+ @name Status macro
+ @~Japanese
+ @name ステータスマクロ
+*/
+/// @{
 #define CPS_AIO_AIS_BUSY		0x0001
 #define CPS_AIO_AIS_START_TRG	0x0002
 #define CPS_AIO_AIS_DATA_NUM	0x0010
 #define CPS_AIO_AIS_OFERR		0x00010000
 #define CPS_AIO_AIS_SCERR		0x00020000
+/// @}
 
-///< アナログ入力フラグマクロ
+/*!
+ @~English
+ @name Analog Input Flag macro
+ @~Japanese
+ @name アナログ入力フラグマクロ
+*/
+/// @{
 #define CPS_AIO_AI_FLAG_SCAN_END	0x0001
 #define CPS_AIO_AI_FLAG_DATANUM_END	0x0002
 #define	CPS_AIO_AI_FLAG_CLOCKERROR	0x0100
 #define	CPS_AIO_AI_FLAG_MOTION_END	0x8000
+/// @}
 
-///< アナログ出力フラグマクロ
+/*!
+ @~English
+ @name Analog Output Flag macro
+ @~Japanese
+ @name アナログ出力フラグマクロ
+*/
+/// @{
 #define CPS_AIO_AO_FLAG_DATANUM_END	0x0002
 #define	CPS_AIO_AO_FLAG_CLOCKERROR	0x0100
 #define	CPS_AIO_AO_FLAG_MOTION_END	0x8000
+/// @}
 
-
-///< メモリフラグマクロ
+/*!
+ @~English
+ @name Memory Flag macro
+ @~Japanese
+ @name メモリフラグマクロ
+*/
+/// @{
 #define	CPS_AIO_MEM_FLAG_OVERFLOW	0x0002
+/// @}
 
 /* CPS-AIO AO STATUS */
 #define CPS_AIO_AO_STATUS_CALIBRATION_BUSY	0x100

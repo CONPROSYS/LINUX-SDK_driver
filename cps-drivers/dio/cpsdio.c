@@ -218,23 +218,6 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 
 #include "cpsdio_devdata.h"
 
-
-/**
-	@~English
-	@brief This function get Digital Input Data.
-	@param BaseAddr : Base Address
-	@param port : Port Number
-	@param val : value
-	@return true : 0
-	@~Japanese
-	@brief デジタル入力のデータを取得する関数
-	@param BaseAddr : ベースアドレス
-	@param port : ポート番号
-	@param val : 値
-	@return 成功 : 0
-**/
-
-
 /**
 	@~English
 	@brief This function get Digital Input Data.
