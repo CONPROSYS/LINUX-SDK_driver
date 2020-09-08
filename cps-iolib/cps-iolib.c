@@ -240,13 +240,13 @@ static int cpsio_open(struct inode *inode, struct file *filp )
 /**
 	@~English
 	@brief This function is called by close user function.
-	@param filp : struct file pointer
 	@param inode : node parameter
+	@param file : struct file pointer	
 	@return success: 0 , failed: otherwise 0
  	@~Japanese
 	@brief この関数はCLOSE関数で呼び出されます。
-	@param filp : ファイル構造体ポインタ
 	@param inode : ノード構造体ポインタ
+	@param filp : ファイル構造体ポインタ	
 	@return 成功: 0 , 失敗: 0以外
 **/
 static int cpsio_close(struct inode * inode, struct file *file ){

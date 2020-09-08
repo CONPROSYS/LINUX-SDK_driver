@@ -2,7 +2,7 @@
 #include <linux/ioctl.h>
 
 /**
-	@struct cpsio_ioctl argument
+	@struct cpsio_ioctl_arg
 	@brief I/O Control Argument
 **/
 struct cpsio_ioctl_arg{

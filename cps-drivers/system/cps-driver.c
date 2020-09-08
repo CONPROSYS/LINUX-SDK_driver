@@ -386,11 +386,11 @@ EXPORT_SYMBOL_GPL(contec_mcs341_outb);
 	@~English
 	@brief MCS341 address read data.
 	@param addr : Address
-	@param valb : value ( unsigned short )
+	@param valw : value ( unsigned short )
 	@~Japanese
 	@brief MCS341 のアドレスにデータを2バイト分読み出す関数
 	@param addr : アドレス
-	@param valb : 値
+	@param valw : 値
 **/
 static void contec_mcs341_inpw(unsigned long addr, unsigned short *valw )
 {
@@ -409,11 +409,11 @@ EXPORT_SYMBOL_GPL(contec_mcs341_inpw);
 	@~English
 	@brief MCS341 address write data.
 	@param addr : Address
-	@param valb : value ( unsigned short )
+	@param valw : value ( unsigned short )
 	@~Japanese
 	@brief MCS341 のアドレスにデータを2バイト分書き出す関数
 	@param addr : アドレス
-	@param valb : 値
+	@param valw : 値
 **/
 static void contec_mcs341_outw(unsigned long addr, unsigned short valw )
 {
@@ -470,11 +470,11 @@ static void contec_mcs341_controller_outb(unsigned int addr, unsigned char valb 
 	@~English
 	@brief MCS341 Controller's address read data.
 	@param addr : Address
-	@param valb : value ( unsigned short )
+	@param valw : value ( unsigned short )
 	@~Japanese
 	@brief MCS341 Controllerのアドレスにデータを2バイト分読み出す関数
 	@param addr : アドレス
-	@param valb : 値
+	@param valw : 値
 **/
 static void contec_mcs341_controller_inpw(unsigned int addr, unsigned short *valw )
 {
@@ -485,11 +485,11 @@ static void contec_mcs341_controller_inpw(unsigned int addr, unsigned short *val
 	@~English
 	@brief MCS341 Controller's address write data.
 	@param addr : Address
-	@param valb : value ( unsigned short )
+	@param valw : value ( unsigned short )
 	@~Japanese
 	@brief MCS341 Controllerのアドレスにデータを2バイト分書き出す関数
 	@param addr : アドレス
-	@param valb : 値
+	@param valw : 値
 **/
 static void contec_mcs341_controller_outw(unsigned int addr, unsigned short valw )
 {
@@ -1067,7 +1067,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 	@par This function is sub-routine.
 	@~Japanese
 	@brief MCS341 Device Memoryのalloc/releaseを行うための関数。
-	@param isUsedDelay : 0... release, 1... alloc
+	@param isAlloc : 0... release, 1... alloc
 	@par この関数は内部関数です。
 	@note Ver.1.0.15 に作成
 **/
@@ -1271,12 +1271,13 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 /**
 	@~English
 	@brief This function is CPS-Child Devices Initialize.
-	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
-	@param childType: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return 成功 0, 失敗 0以外.
+	@par この関数は内部関数です。	
 **/
 static unsigned int _contec_mcs341_controller_childunit_init_mc341b_90( int isUsedDelay)
 {
@@ -1327,12 +1328,13 @@ static unsigned int _contec_mcs341_controller_childunit_init_mc341b_90( int isUs
 /**
 	@~English
 	@brief This function is CPS-Child Devices INF-MC341B-A0 Initialize.
-	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板 INF-MC341B-A0 を初期化する関数。
-	@param isUsedDelay: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return 成功 0, 失敗 0以外.
+	@par この関数は内部関数です。	
 **/
 static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUsedDelay)
 {
@@ -1387,11 +1389,14 @@ static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUs
 	@~English
 	@brief This function is CPS-Child Devices Initialize.
 	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay	
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
 	@param childType: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay	
 	@return 成功 0, 失敗 0以外.
+	@par この関数は内部関数です。	
 **/
 static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int childType, int isUsedDelay)
 {
@@ -1504,12 +1509,13 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
 /**
 	@~English
 	@brief This function is CPS-Child Devices Exit.
-	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
-	@param childType: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return 成功 0, 失敗 0以外.
+	@par この関数は内部関数です。	
 **/
 static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_90( int isUsedDelay)
 {
@@ -1566,11 +1572,11 @@ static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_90( int isUs
 /**
 	@~English
 	@brief This function is CPS-Child Devices Exit.
-	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
-	@param childType: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay
 	@return 成功 0, 失敗 0以外.
 **/
 static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_A0( int isUsedDelay)
@@ -1611,10 +1617,12 @@ static unsigned int _contec_mcs341_controller_childunit_exit_mc341b_A0( int isUs
 	@~English
 	@brief This function is CPS-Child Devices Exit.
 	@param childType: Child Board Type
+	@param isUsedDelay : 0... sleep, 1... delay	
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
 	@param childType: 子基板番号
+	@param isUsedDelay : 0... sleep, 1... delay	
 	@return 成功 0, 失敗 0以外.
 **/
 static unsigned int _contec_mcs341_controller_cpsChildUnitExit(unsigned int childType, int isUsedDelay)

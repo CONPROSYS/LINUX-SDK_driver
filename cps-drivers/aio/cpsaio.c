@@ -720,13 +720,15 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 /**
 	@~English
 	@brief This function get analog input status.
+	@param inout : Input or Output
 	@param BaseAddr : base address
-	@param wStatus : status
+	@param ulStatus : status
 	@return true : 0
 	@~Japanese
 	@brief Analogステータスを取得する関数
+	@param inout : Input or Output	
 	@param BaseAddr : ベースアドレス
-	@param wStatus : ステータス
+	@param ulStatus : ステータス
 	@return 成功 : 0
 **/ 
 unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, unsigned long *ulStatus )
@@ -736,7 +738,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 
 	switch( inout ){
 	case CPS_AIO_INOUT_AI :
-		///< アナログ入力ステータスを取得
+		//// アナログ入力ステータスを取得
 		cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 		// AIS_BUSY
@@ -759,14 +761,14 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		}else{
 			ulTmpStatus &= ~CPS_AIO_AIS_START_TRG;
 		}		
-		// AIS_DATA_NUM
-		///< AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
-		///< 本ステータスはイベント機能と連動している
-		///< イベント機能が未実装のため、本ステータスも未実装とする
+		//// AIS_DATA_NUM
+		// AIS_DATA_NUMは現在のバッファを確認し、設定されたサンプリング数以上ならセット、未満ならリセットする
+		// 本ステータスはイベント機能と連動している
+		// イベント機能が未実装のため、本ステータスも未実装とする
 		
 		wAnalogFlag = 0;
 
-		///< メモリフラグを取得
+		//// メモリフラグを取得
 		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
 
 		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_MEM_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
@@ -785,14 +787,14 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		}
 		wAnalogFlag = 0;
 
-		///< アナログ入力フラグを取得
+		//// アナログ入力フラグを取得
 		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( BaseAddr , &wAnalogFlag );
 
-		///< CPS_AIO_AIS_DATA_NUM
+		//// CPS_AIO_AIS_DATA_NUM
 		//if( wAnalogFlag & CPS_AIO_AI_FLAG_DATANUM_END )	ulTmpStatus |= CPS_AIO_AIS_DATA_NUM;
 		//else ulTmpStatus &= ~(CPS_AIO_AIS_DATA_NUM);
 		DEBUG_CPSAIO_IOCTL(KERN_INFO"ECU_AI_GET_INTERRUPT_FLAG %hx.", wAnalogFlag);
-		///< AIS_SCERR
+		// AIS_SCERR
 		if( wAnalogFlag & CPS_AIO_AI_FLAG_CLOCKERROR )	ulTmpStatus |= CPS_AIO_AIS_SCERR;
 		else ulTmpStatus &= ~(CPS_AIO_AIS_SCERR);
 
@@ -806,7 +808,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 				wAnalogStatus = 0;
 				do{
 					CPSAIO_COMMAND_AI_STOP( BaseAddr );
-					///< アナログ入力ステータスを取得
+					//// アナログ入力ステータスを取得
 					cpsaio_read_ai_status( BaseAddr, &wAnalogStatus );
 
 				}while( wAnalogStatus & CPS_AIO_AI_STATUS_AI_ENABLE );
@@ -814,7 +816,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 			}
 		}
 
-		///< Tempステータスを引数のステータスに格納
+		//// Tempステータスを引数のステータスに格納
 		*ulStatus = ulTmpStatus;
 		
 		break;
@@ -828,7 +830,7 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 		if( wAnalogStatus & 0x10 )	ulTmpStatus |= 0x00000001;
 		else ulTmpStatus &= ~(0x00000001);
 
-		///< Tempステータスを引数のステータスに格納
+		// Tempステータスを引数のステータスに格納
 		*ulStatus = ulTmpStatus;
 
 		break;
@@ -841,14 +843,18 @@ unsigned long cpsaio_get_status( unsigned char inout, unsigned long BaseAddr, un
 
 /**
 	@~English
-	@brief This function get analog clear status.
+	@brief This function clear analog status.
 	@param BaseAddr : base address
-	@param wStatus : status
+	@param memflags : 
+	@param aiflags : 
+	@param aoflags :
 	@return true : 0
 	@~Japanese
-	@brief Analogステータスを取得する関数
+	@brief Analog ステータスをクリアする関数
 	@param BaseAddr : ベースアドレス
-	@param wStatus : ステータス
+	@param memflags : 
+	@param aiflags : 
+	@param aoflags :
 	@return 成功 : 0
 **/ 
 unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memflags, unsigned short aiflags , unsigned short aoflags )
@@ -869,13 +875,15 @@ unsigned long _cpsaio_clear_status( unsigned long BaseAddr , unsigned short memf
 /**
 	@~English
 	@brief This function get analog input status.
+	@param inout : Input or Output		
 	@param BaseAddr : base address
-	@param wStatus : status
+	@param FuncType : Reset Function Type
 	@return true : 0
 	@~Japanese
 	@brief Analogステータスを取得する関数
+	@param inout : Input or Output	
 	@param BaseAddr : ベースアドレス
-	@param wStatus : ステータス
+	@param FuncType : Reset ステータス functional type
 	@return 成功 : 0
 **/ 
 long cpsaio_reset_status( unsigned char inout, unsigned long BaseAddr, unsigned char FuncType  )
