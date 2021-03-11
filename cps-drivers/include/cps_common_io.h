@@ -265,10 +265,10 @@ static int cps_common_mem_release( unsigned long baseMemory, unsigned int areaSi
 	int ret = 0;
 
 	if ( mappedAddress ) {
+		iounmap(mappedAddress);		
 		if ( isRegion ){
 			release_mem_region(baseMemory, areaSize);
 		}
-		iounmap(mappedAddress);
 	}
 
 	return ret;

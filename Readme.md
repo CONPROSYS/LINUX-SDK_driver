@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.6.0.1 (2020/09/01)
+* Version : 1.6.1.0 (2021/03/10)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -17,6 +17,7 @@
 * [CPS-MCS341-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341-ds1-131/price/)
 * [CPS-MCS341G-DS1-130](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341g-ds1-130/price/)
 * [CPS-MCS341Q-DS1-131](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341q-ds1-131/price/)
+* [CPS-MCS341G5-DS1-130](https://www.contec.com/en/products-services/daq-control/iiot-conprosys/m2m-controller/cps-mcs341g5-ds1-130/price/)
 
 ### Modules
 * Analog Input/Output
@@ -65,7 +66,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.2.1
+        * Version 1.2.3
     * io (iolib wrapper)
         * Version 2.0.1         
     * spi/dio (Digital Input/Output)
@@ -78,6 +79,13 @@
 
 
 ## Change logs
+* Ver 1.6.1.0
+    * cps-driver Ver.1.2.2 -> Ver.1.2.3
+        * The attribute of cps-driver adds the controller_indata.
+        * When read ubnormal data for Controller IC, cps-driver resets Controller IC.
+        If the the conteoller IC is not repair , cps-driver reboots own controller. 
+    * cps-iolib Ver 1.0.6 -> 1.0.7
+        * When the Controller IC was read ubnormal data , cps-driver resets own controller. 
 
 * Ver.1.6.0.1
     * cps-driver Ver.1.2.1 -> Ver.1.2.2
@@ -86,7 +94,7 @@
 
 * Ver 1.6.0.0
     * cps-driver Ver.1.1.4 -> Ver.1.2.1
-        * Add LTE Unit.( Quectel EC25 )    
+         * Add LTE Communication Controller.(CPS-MCS341G5-DS1-130)  
         * Fixed. Change  from child_unit to ChildType in _contec_mcs341_controller_cpsChildUnitInit and _contec_mcs341_controller_cpsChildUnitExit function.
 
 * Ver 1.5.1.0

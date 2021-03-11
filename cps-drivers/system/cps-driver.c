@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.2.1
+ * Version 1.2.3
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.2.1"
+#define DRV_VERSION	"1.2.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -135,6 +135,14 @@ static unsigned int shutdown_sequence = 0;	///< shutdown_sequence
 static unsigned short fpga_ver = 0;	///< fpga_version
 static unsigned char mcs341_systeminit_reg = 0; ///< fpga system init data
 static unsigned char mcs341_fpga_reset_reg = 0; ///< fpga reset data
+static unsigned long mcs341_stackbus_failed_count = 0; ///< stackbus hardware error count
+
+static unsigned long mcs341_stackbus_failed_max = 65535; ////< stackbus hardware error max number
+
+static int bus_reseting_state = 0;
+static int bus_reseting_count = 0;
+static int keepcheck_count = 0;
+static int bus_reseting_time = 0;
 
 //2016.04.29 Error LED timer counter
 #define CPS_MCS341_ARRAYNUM_LED_PWR	0
@@ -187,6 +195,9 @@ static unsigned int watchdog_timer_msec = 0;///< watchdog mode ( 0..None, otherw
 //module_param(watchdog_timer_msec, uint, 0644 );
 //MODULE_PARM_DESC(watchdog_timer_msec, "Enable Watchdog Mode.( 0..None, otherwise:watchdog on )");
 
+static unsigned char DriverResetHardware = 0;
+module_param(DriverResetHardware, uint, 0644 );
+MODULE_PARM_DESC(DriverResetHardware, "This driver resets all hardware due to hardware error. (0: Disable 1:Enable 2:Enable ");
 
 static unsigned char deviceNumber;		///< device number
 
@@ -207,7 +218,7 @@ static int CompleteDevIrqs ;
 
 static void contec_mcs341_device_common_inpb(unsigned int dev, unsigned int offset, unsigned char *valb );
 static void contec_mcs341_device_common_outb(unsigned int dev, unsigned int offset, unsigned char valb );
-
+static unsigned char contec_mcs341_device_max_connect_devices_get( int dev );
 
 
 /**
@@ -357,7 +368,7 @@ static void contec_mcs341_inpb(unsigned long addr, unsigned char *valb )
 	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_inpb( addr, valb );
 	spin_unlock_irqrestore(&mcs341_access_lock, flags);
-	DEBUG_ADDR_VAL_IN("[in]  cps-system: Offset Address : %x Value %x\n", addr, *valb );
+	DEBUG_ADDR_VAL_IN("[in]  cps-system: Offset Address : %lx Value %x\n", addr, *valb );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_inpb);
 
@@ -375,7 +386,7 @@ static void contec_mcs341_outb(unsigned long addr, unsigned char valb )
 {
 	unsigned long flags = 0;
 
-	DEBUG_ADDR_VAL_OUT("[out] cps-system: Offset Address : %x Value %x \n", addr, valb );
+	DEBUG_ADDR_VAL_OUT("[out] cps-system: Offset Address : %lx Value %x \n", addr, valb );
 	spin_lock_irqsave(&mcs341_access_lock, flags);
 	cps_common_outb( addr, valb );
 	spin_unlock_irqrestore(&mcs341_access_lock, flags);	
@@ -401,7 +412,7 @@ static void contec_mcs341_inpw(unsigned long addr, unsigned short *valw )
 	spin_lock_irqsave(&mcs341_access_lock, flags);	
 	cps_common_inpw( addr, valw );
 	spin_unlock_irqrestore(&mcs341_access_lock, flags);
-	DEBUG_ADDR_VAL_IN("[in]  cps-system: Offset Address : %x Value %hx\n", addr, *valw );
+	DEBUG_ADDR_VAL_IN("[in]  cps-system: Offset Address : %lx Value %hx\n", addr, *valw );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_inpw);
 
@@ -419,7 +430,7 @@ static void contec_mcs341_outw(unsigned long addr, unsigned short valw )
 {
 	unsigned long flags = 0;
 
-	DEBUG_ADDR_VAL_OUT("[out] cps-system: Offset Address : %x Value %hx \n", addr, valw );
+	DEBUG_ADDR_VAL_OUT("[out] cps-system: Offset Address : %lx Value %hx \n", addr, valw );
 	spin_lock_irqsave(&mcs341_access_lock, flags);	
 	cps_common_outw( addr, valw );
 	spin_unlock_irqrestore(&mcs341_access_lock, flags);	
@@ -1078,38 +1089,46 @@ static int __contec_mcs341_device_memory( int isAlloc )
 	int cnt;
 
 	if( deviceNumber != 0x3f && deviceNumber != 0 ){
-		for( cnt = 0; cnt < deviceNumber ; cnt++ ){
-			if( isAlloc ){
-				DEBUG_INITMEMORY(" cps-system : device number : %d \n", deviceNumber );
-				if( !map_devbaseaddr[cnt] ){
-					allocaddr =
-							cps_common_mem_alloc( (0x08000000 + (cnt + 1) * 0x100 ),
-							0x10,
-							"cps-mcs341-common-dev",
-	//						CPS_COMMON_MEM_NONREGION	 );
-							CPS_COMMON_MEM_REGION );
-					if( !allocaddr ){
-						iRet = 1;
-					}else{
-						map_devbaseaddr[cnt] = allocaddr;
+		if( deviceNumber <= CPS_DEVICE_MAX_NUM ){	// V.1.2.3
+			for( cnt = 0; cnt < deviceNumber ; cnt++ ){
+				if( isAlloc ){
+					DEBUG_INITMEMORY(" cps-system : device number : %d \n", deviceNumber );
+					if( !map_devbaseaddr[cnt] ){
+						allocaddr =
+								cps_common_mem_alloc( (0x08000000 + (cnt + 1) * 0x100 ),
+								0x10,
+								"cps-mcs341-common-dev",
+		//						CPS_COMMON_MEM_NONREGION	 );
+								CPS_COMMON_MEM_REGION );
+						if( !allocaddr ){
+							iRet = 1;
+						}else{
+							map_devbaseaddr[cnt] = allocaddr;
+						}
 					}
-				}
 
-				if( map_devbaseaddr[cnt] ){
-					DEBUG_INITMEMORY("cps-system: device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
-				}
+					if( map_devbaseaddr[cnt] ){
+						DEBUG_INITMEMORY("cps-system: device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+					}
 
-			}else{
-				DEBUG_EXITMEMORY("cps-system: Release Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
-				cps_common_mem_release( (0x08000000 + (cnt + 1) * 0x100 ),
-						0x10,
-						map_devbaseaddr[cnt],
-//					CPS_COMMON_MEM_NONREGION );
-						CPS_COMMON_MEM_REGION	 );
-				DEBUG_EXITMEMORY("cps-system: Free Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
-				map_devbaseaddr[cnt] = NULL; // Ver.1.0.15
-				DEBUG_EXITMEMORY("cps-system: Free After device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+				}else{
+					DEBUG_EXITMEMORY("cps-system: Release Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+					if( map_devbaseaddr[cnt] ){
+						allocaddr = map_devbaseaddr[cnt];
+						map_devbaseaddr[cnt] = NULL; // Ver.1.0.15
+						cps_common_mem_release( (0x08000000 + (cnt + 1) * 0x100 ),
+							0x10,
+							allocaddr,
+	//						map_devbaseaddr[cnt],
+	//					CPS_COMMON_MEM_NONREGION );
+							CPS_COMMON_MEM_REGION	 );
+						DEBUG_EXITMEMORY(KERN_INFO "cps-system: Free Before device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+					}
+					DEBUG_EXITMEMORY(KERN_INFO "cps-system: Free After device %d Address:%lx \n",cnt,(unsigned long)map_devbaseaddr[cnt]);
+				}
 			}
+		}else{
+			iRet = 1;
 		}
 	}
 	return iRet;
@@ -1146,6 +1165,67 @@ static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 
 /**
 	@~English
+	@brief This function is resetting CPS-Stack Bus.
+	@param isUsedDelay : 0... sleep, 1... delay
+	@par This function is sub-routine.
+	@~Japanese
+	@brief MCS341スタックバスをリセットする関数。
+	@param isUsedDelay : 0... sleep, 1... delay
+	@par この関数は内部関数です。
+**/
+static void __contec_mcs341_device_bus_reset( int isUsedDelay ){
+
+	gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 0);
+	contec_cps_micro_delay_sleep( ( 2 * USEC_PER_SEC), isUsedDelay );
+	gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 1);
+	contec_cps_micro_delay_sleep( ( 1 * USEC_PER_SEC), isUsedDelay );
+
+}
+
+/**
+	@~English
+	@brief This function is resetting Hardware CPU.
+	@par This function is sub-routine.
+	@~Japanese
+	@brief MCS341CPUをリセットする関数です。
+	@par この関数は内部関数です。
+**/
+static void __contec_mcs341_cpu_hardware_reset( void ){
+
+	gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
+	while ( 1 )
+		cpu_relax();
+
+}
+
+/**
+	@~English
+	@brief This function is aliving to the stacking device modules.
+	@return Success 0 , Failed less than 0.	
+	@~Japanese
+	@brief MCS341スタックデバイスの生存確認関数です。
+	@return 成功 0, 失敗 <0.	
+**/
+static int contec_mcs341_is_alive_stack_devices( void ){
+	unsigned char checkDeviceMaxId = 0;
+	int isDeviceIdFailed = 0; // V.1.2.3
+	unsigned char deviceCount = 0; // V1.2.3 
+
+	for( deviceCount  = 0; deviceCount < deviceNumber ; deviceCount ++ ){
+		checkDeviceMaxId = contec_mcs341_device_max_connect_devices_get(deviceCount);
+		//cps_common_inpb( (unsigned long)(map_devbaseaddr[deviceCount] + CPS_DEVICE_COMMON_MAXCONNECT_ID_ADDR), &checkDeviceMaxId );
+		if ( deviceNumber != checkDeviceMaxId ){
+			pr_err("cps-driver :[ERROR:INIT] FPGA +%x05 Hex Read %x (Hex). but DeviceNumber = %x is not equal.\n", (deviceCount + 1), checkDeviceMaxId, deviceNumber );
+			isDeviceIdFailed = -1;
+		}
+	}
+
+	return isDeviceIdFailed;
+
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_is_alive_stack_devices);
+/**
+	@~English
 	@brief This function is CPS-Stack Devices Initialize.
 	@param isUsedDelay : 0... sleep, 1... delay
 	@par This function is sub-routine of Initialize.
@@ -1163,6 +1243,8 @@ static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	unsigned char valb = 0;
 	unsigned int timeout = 0;
+	unsigned char readDeviceNumberCount = 0; // V1.2.3
+	unsigned char checkDeviceNumber = 0; // V.1.2.3	
 
 	//cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 	//contec_mcs341_controller_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
@@ -1174,23 +1256,20 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			valb != CPS_MCS341_SYSTEMSTATUS_INIT_END &&
 			valb != ( CPS_MCS341_SYSTEMSTATUS_INIT_END | CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END ))
 	{
-		printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +3Hex Read %x (Hex)!! Check FPGA Hardware!! \n", valb);
+		pr_err("cps-driver :[ERROR:INIT] FPGA +3Hex Read %x (Hex)!! Check FPGA Hardware!! \n", valb);
 		return -EIO;
-	}
+	}	
 
 	fpga_ver = contec_mcs341_controller_getFpgaVersion();
 
 	printk(KERN_INFO"FPGA_VER:%x\n",fpga_ver);
 
-
-	if( fpga_ver > 0x01 ){ //FPGA　Revision > Ver 1
-		mcs341_fpga_reset_reg |= CPS_MCS341_RESET_SET_LVDS_PWR;
-		contec_mcs341_controller_setFpgaResetReg();
-	}
-
-
-
 	if( CPS_MCS341_SYSTEMSTATUS_BUSY( valb ) ){
+
+		if( fpga_ver > 0x01 ){ //FPGA　Revision > Ver 1
+			mcs341_fpga_reset_reg |= CPS_MCS341_RESET_SET_LVDS_PWR;
+			contec_mcs341_controller_setFpgaResetReg();
+		}
 
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
 		contec_mcs341_controller_setSystemInit();
@@ -1201,7 +1280,8 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			valb = contec_mcs341_controller_getSystemStatus();
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++;
-		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INIT_END) );
+		//}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INIT_END));	
+		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INIT_END) || CPS_MCS341_SYSTEMSTATUS_BUSY( valb ) );  // New Driver 
 
 		/*
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
@@ -1211,6 +1291,14 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 
 		//Memory Initialize
 		deviceNumber = contec_mcs341_controller_getDeviceNum();
+
+
+		for(readDeviceNumberCount = 0; readDeviceNumberCount < 3; readDeviceNumberCount ++){
+			contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
+			checkDeviceNumber = contec_mcs341_controller_getDeviceNum();
+			if( deviceNumber != checkDeviceNumber )	return -EIO;
+		}
+
 		DEBUG_INITMEMORY(" cps-system : device number : %d \n", deviceNumber );
 		if( __contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_ALLOCATE ) ){
 			return -ENOMEM;
@@ -1237,10 +1325,25 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
 		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END)  );
+
+		//V1.2.3 Address +X05 read Max Connected Device Number Check 
+		if( contec_mcs341_is_alive_stack_devices() != 0 ){
+			__contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_RELEASE );			
+			return -EIO;
+		}
+
 	}else{
 		//Memory Initialize
 		deviceNumber = contec_mcs341_controller_getDeviceNum();
-		DEBUG_INITMEMORY(" cps-system : device number : %d \n", deviceNumber );
+
+		for(readDeviceNumberCount = 0; readDeviceNumberCount < 3; readDeviceNumberCount ++){
+			contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
+			checkDeviceNumber = contec_mcs341_controller_getDeviceNum();
+			if( deviceNumber != checkDeviceNumber )	return -EIO;
+		}
+
+		DEBUG_INITMEMORY(" cps-system : <device number> : %d \n", deviceNumber );
+
 		if( __contec_mcs341_device_memory( CPS_DEVICE_COMMON_MEMORY_ALLOCATE ) ){
 			return -ENOMEM;
 		}
@@ -1264,7 +1367,45 @@ static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	@return 成功 0, 失敗 0以外.
 **/
 static int contec_mcs341_controller_cpsDevicesInit(void){
-	return _contec_mcs341_controller_cpsDevicesInit( 0 );
+	int iRet = 0;
+	int isDeviceInitLoop = 0;
+
+	do{
+		iRet  =  _contec_mcs341_controller_cpsDevicesInit( 0 );
+
+		if ( iRet == -EIO || iRet == -ENXIO )	{
+			mcs341_stackbus_failed_count++;
+			WARN_ON("cps-driver : Failed FPGA Initialize.");		
+			if( DriverResetHardware ){
+				printk(KERN_ERR"cps-driver :[ERROR:INIT] HardwareReset Ready!! \n" );
+				switch( DriverResetHardware ){
+					case 0:
+						break;
+					case 1: 
+						__contec_mcs341_cpu_hardware_reset();
+						break;
+					case 2:
+					default:
+						if( mcs341_stackbus_failed_count <= mcs341_stackbus_failed_max ){
+							pr_warn("cps-driver :[RETRY:INIT] Conprosys Bus Reset Ready!! \n" );
+							__contec_mcs341_device_bus_reset( 0 );
+						}
+						else // over mcs341_stackbus_failed_max ... CPU reset...!
+						{
+							__contec_mcs341_cpu_hardware_reset();
+						}
+
+						isDeviceInitLoop = 1;
+						break;
+				}
+			}
+		}else{
+			if( isDeviceInitLoop )
+				isDeviceInitLoop = 0;
+		}
+	}while( isDeviceInitLoop );
+
+	return iRet;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 
@@ -1389,14 +1530,11 @@ static unsigned int _contec_mcs341_controller_childunit_init_mc341b_A0( int isUs
 	@~English
 	@brief This function is CPS-Child Devices Initialize.
 	@param childType: Child Board Type
-	@param isUsedDelay : 0... sleep, 1... delay	
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerの子基板を初期化する関数。
 	@param childType: 子基板番号
-	@param isUsedDelay : 0... sleep, 1... delay	
 	@return 成功 0, 失敗 0以外.
-	@par この関数は内部関数です。	
 **/
 static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int childType, int isUsedDelay)
 {
@@ -1711,6 +1849,7 @@ void mcs341_controller_timer_function(unsigned long arg)
 
 	struct timer_list *tick = (struct timer_list *) arg;
 	int cnt;
+	int iRet = 0;
 
 	// Err LED 追加 Ver.1.0.8
 	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
@@ -1758,26 +1897,100 @@ void mcs341_controller_timer_function(unsigned long arg)
 		}
 	}
 
-	/* Ver 1.0.14 Do not run without shutdown sequence. */
-	if( !shutdown_sequence ){
-		/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
-		if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
-			DEBUG_TIMER_FUNC_PRINT("<cps-driver>:FPGA re-init sequence!\n");
-			// restarting initialize !!
-			mcs341_systeminit_reg = 0;
-			if( _contec_mcs341_controller_cpsDevicesInit( 1 ) == 0 ){
-				_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
-			}
-			DEBUG_TIMER_FUNC_PRINT("<cps-driver>:last status %x \n",mcs341_systeminit_reg);
-		}
-	}else{
-			// After Shutdown /Reboot sequence
-			DEBUG_TIMER_FUNC_PRINT("<cps-driver>:Do not run restart sequence!\n");
-	}
+	// /* Ver 1.0.14 Do not run without shutdown sequence. */
+	// if( !shutdown_sequence ){
+	// 	if( mcs341_stackbus_failed_count <= mcs341_stackbus_failed_max ){ 
+	// 		// Ver 1.2.3 Device Bus Reset in timer function
+	// 		if( bus_reseting_state > 0 ){
+	// 			switch ( bus_reseting_state ){
+	// 				case 1:
+	// 					if( fpga_ver > 1 ){
+	// 						// LVDS OFF
+	// 						mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
+	// 						contec_mcs341_controller_setFpgaResetReg();
 
-	if( watchdog_timer_msec ){
-		contec_mcs341_controller_clear_watchdog();
-	}
+	// 						// INTERRUPT LINE OFF
+	// 						mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
+	// 						contec_mcs341_controller_setSystemInit();
+	// 					}
+
+	// 					gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 0);
+	// 					bus_reseting_state = 2;
+	// 					break;
+	// 				case 2:
+	// 				case 4:
+	// 					if( bus_reseting_count == 0 ){
+	// 						if( bus_reseting_state == 2 ) 
+	// 							bus_reseting_time = 2; // 2sec
+	// 						else 
+	// 							bus_reseting_time = 1; // 1sec
+
+	// 						bus_reseting_count = 1;
+	// 					}
+	// 					else if (bus_reseting_count <= bus_reseting_time * 50 ){	//  Wait bus_reseting_time sec
+	// 						bus_reseting_count += 1;
+	// 					}else{
+	// 						bus_reseting_count = 0;
+	// 						if( bus_reseting_state == 4 ) 
+	// 							bus_reseting_state = 0; // bus reset end
+	// 						else
+	// 							bus_reseting_state += 1;
+	// 					}
+	// 					break;
+	// 				case 3:
+	// 					gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 1);
+	// 					bus_reseting_state = 4;
+	// 					break;
+	// 			}
+
+	// 		}
+	// 		else{
+	// 			if( keepcheck_count == 0 ){
+	// 				/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
+	// 				if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+	// 					DEBUG_TIMER_FUNC_PRINT("<cps-driver>:FPGA re-init sequence!\n");
+	// 					// restarting initialize !!
+	// 					mcs341_systeminit_reg = 0;
+	// 					iRet = _contec_mcs341_controller_cpsDevicesInit( 1 );
+
+	// 					if ( iRet == 0 ){
+	// 						_contec_mcs341_controller_cpsChildUnitInit( child_unit, 1 );
+	// 					}
+
+	// 					DEBUG_TIMER_FUNC_PRINT("<cps-driver>:last status %x \n",mcs341_systeminit_reg);
+	// 				}
+	// 				else{
+	// 					// +X05 check
+	// 					if( contec_mcs341_is_alive_stack_devices() != 0 ){
+	// 						iRet = -EIO;
+	// 					}
+	// 				}
+	// 			}else{
+	// 				if( keepcheck_count >= 50 ){
+	// 					// clear keep_check_count
+	// 					keepcheck_count = -1;
+	// 				}
+	// 			}
+	// 			keepcheck_count ++;
+	// 		}
+
+	// 		if ( iRet == -EIO || iRet == -ENXIO ){ 
+	// 			bus_reseting_state = 1;
+	// 			mcs341_stackbus_failed_count++;
+	// 		}
+	// 	}
+	// 	else{
+	// 		if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] != 2 )
+	// 			ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 2;
+	// 	}
+	// }else{
+	// 		// After Shutdown /Reboot sequence
+	// 		DEBUG_TIMER_FUNC_PRINT("<cps-driver>:Do not run restart sequence!\n");
+	// }
+
+	// if( watchdog_timer_msec ){
+	// 	contec_mcs341_controller_clear_watchdog();
+	// }
 
 	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
 }
@@ -1807,7 +2020,8 @@ void mcs341_controller_timer_function(unsigned long arg)
 static void contec_mcs341_device_common_outb(unsigned int dev, unsigned int offset, unsigned char valb )
 {
 	DEBUG_ADDR_VAL_OUT("[out] cps-system: DevNumber : %x Offset Address : %x Value %x \n", dev, offset, valb );
-	contec_mcs341_outb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
+	if( map_devbaseaddr[dev] != NULL )
+		contec_mcs341_outb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_common_outb);
 
@@ -1825,9 +2039,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_common_outb);
 **/
 static void contec_mcs341_device_common_inpb(unsigned int dev, unsigned int offset, unsigned char *valb )
 {
-	unsigned long flags = 0;
-
-	if( valb != (unsigned char *)NULL ){
+	if( valb != (unsigned char *)NULL && map_devbaseaddr[dev] != NULL ){
 		contec_mcs341_inpb( (unsigned long)(map_devbaseaddr[dev] + offset), valb );
 		DEBUG_ADDR_VAL_IN("[in]  cps-system: DevNumber : %x Offset Address : %x Value %x\n", dev, offset, *valb );
 	}
@@ -1849,7 +2061,8 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_common_inpb);
 static void contec_mcs341_device_common_outw(unsigned int dev, unsigned int offset, unsigned short valw )
 {
 	DEBUG_ADDR_VAL_OUT("[out] cps-system: DevNumber : %x Offset Address : %x Value %hx \n", dev, offset, valw );
-	contec_mcs341_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
+	if( map_devbaseaddr[dev] != NULL )
+		contec_mcs341_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_common_outw);
 /**
@@ -1866,7 +2079,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_common_outw);
 **/
 static void contec_mcs341_device_common_inpw(unsigned int dev, unsigned int offset, unsigned short *valw )
 {
-	if( valw != (unsigned short *)NULL ){
+	if( valw != (unsigned short *)NULL && map_devbaseaddr[dev] != NULL ){
 		contec_mcs341_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
 		DEBUG_ADDR_VAL_IN("[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
 	}
@@ -2060,6 +2273,29 @@ static unsigned short contec_mcs341_device_physical_id_get( int dev ){
 	return valw;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_physical_id_get);
+
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device Max Connect Device Number .
+	@param dev : Target DeviceNumber ( < deviceNumber )
+	@return Success : product Id , Fail : 0
+	@~Japanese
+	@brief MCS341 最大接続数を取得する関数。
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@return 成功  物理ID, 失敗 0
+**/
+static unsigned char contec_mcs341_device_max_connect_devices_get( int dev ){
+
+	unsigned char valb;
+	
+	if( dev >= deviceNumber ) return 0;
+
+	contec_mcs341_device_common_inpb( dev, CPS_DEVICE_COMMON_MAXCONNECT_ID_ADDR, &valb );
+//	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + CPS_DEVICE_COMMON_PHYSICALID_ADDR), &valw );
+
+	return valb;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_device_max_connect_devices_get);
 
 /**
 	@~English
@@ -3217,6 +3453,58 @@ static int contec_mcs341_extend_3g_io4_value_show(struct device_driver *drvf, ch
 	return sprintf(buf,"%x", bVal);
 }
 
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief controller_indataをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_controller_indata_show(struct device_driver *drvf, char *buf){
+
+	unsigned char bVal = 0;
+	int addr = 0;
+	int len = 0;
+
+	for( addr = 0;addr < 0x100; addr ++ ){
+		if( addr % 0x10 == 0x0 ){
+			len += sprintf(&buf[len] , "+%02x ", addr );
+		}
+		contec_mcs341_controller_inpb(addr, &bVal);
+		len += sprintf(&buf[len], "%02x", bVal);
+		if( addr % 0x10 == 0xF ){
+			len += sprintf(&buf[len], "\n" );
+		}else{
+			len += sprintf(&buf[len], " " );			
+		}
+	}
+
+	return len;
+
+}
+
+/**
+	@~English
+	@brief This function is shown device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 stackbus_failed_countをデバイスファイルへ書き出す間数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@return
+**/
+static int contec_mcs341_stackbus_failed_count_value_show(struct device_driver *drvf, char *buf )
+{
+	return sprintf(buf,"%ld", mcs341_stackbus_failed_count);
+}
+
 
 static DRIVER_ATTR(led_status1, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
 		contec_mcs341_led_status1_show, contec_mcs341_led_status1_store);
@@ -3252,6 +3540,11 @@ static DRIVER_ATTR(extend_3g_io3_value, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| 
 		contec_mcs341_extend_3g_io3_value_show, contec_mcs341_extend_3g_io3_value_store);
 static DRIVER_ATTR(extend_3g_io4_value, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP	| S_IROTH | S_IWOTH,
 		contec_mcs341_extend_3g_io4_value_show, contec_mcs341_extend_3g_io4_value_store);
+// V1.2.3
+static DRIVER_ATTR(controller_indata, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_controller_indata_show, NULL );
+static DRIVER_ATTR(mcs341_stackbus_failed_count, S_IRUSR | S_IRGRP | S_IROTH,
+		contec_mcs341_stackbus_failed_count_value_show, NULL );
 
 /**
 	@struct contec_mcs341_driver
@@ -3302,7 +3595,8 @@ static int contec_mcs341_create_driver_sysfs(struct platform_driver *drvp){
 		err |= driver_create_file(&drvp->driver, &driver_attr_extend_3g_io4_value);
 		break;
 	}
-
+	err |= driver_create_file(&drvp->driver, &driver_attr_controller_indata);	// V1.2.3
+	err |= driver_create_file(&drvp->driver, &driver_attr_mcs341_stackbus_failed_count);	// V1.2.3
 	return err;
 }
 
@@ -3339,6 +3633,8 @@ static void contec_mcs341_remove_driver_sysfs(struct platform_driver *drvp)
 		driver_remove_file(&drvp->driver, &driver_attr_extend_3g_io4_value);
 		break;
 	}
+	driver_remove_file(&drvp->driver, &driver_attr_controller_indata);	// V1.2.3
+	driver_remove_file(&drvp->driver, &driver_attr_mcs341_stackbus_failed_count);	// V1.2.3	
 }
 
 
@@ -3375,9 +3671,20 @@ static int contec_mcs341_controller_init(void)
 	
 	cps_fpga_init();
 
+	// V1.2.3
+	ret = gpio_get_value(CPS_CONTROLLER_MCS341_FPGA_RESET );
+	DEBUG_INITMEMORY("cps-system:  +GPIO 16:%x \n",ret );
+
+	if( ret == 0 ){
+		gpio_free(CPS_CONTROLLER_MCS341_FPGA_RESET);
+		gpio_request(CPS_CONTROLLER_MCS341_FPGA_RESET, "cps_mcs341_ic_reset");
+		gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 1);
+		gpio_export(CPS_CONTROLLER_MCS341_FPGA_RESET, true ) ;
+	}
+
 	if( (ret = contec_mcs341_controller_cpsDevicesInit() ) == 0 ){
 
-			contec_mcs341_controller_cpsChildUnitInit(child_unit);
+		contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
 		//2016.02.17 timer add Ver.1.0.7
 		init_timer(&mcs341_timer);
