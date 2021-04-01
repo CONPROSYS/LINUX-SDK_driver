@@ -60,7 +60,7 @@
     * dio (Digital Input/Output)
         * Version 1.0.4
     * com (Serial Communication)
-        * Version 1.0.8
+        * Version 1.0.9
     * cnt (Counter)
         * Version 1.0.1
     * ssi (Sensor Input)
@@ -86,6 +86,8 @@
         If the the conteoller IC is not repair , cps-driver reboots own controller. 
     * cps-iolib Ver 1.0.6 -> 1.0.7
         * When the Controller IC was read ubnormal data , cps-driver resets own controller. 
+    * 8250_cpscom Ver.1.0.8 -> Ver.1.0.9
+        * Bugfix initialize sequence(Power-On/Reset) . (CPS-COM-1QL)
 
 * Ver.1.6.0.1
     * cps-driver Ver.1.2.1 -> Ver.1.2.2
