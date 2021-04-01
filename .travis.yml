@@ -18,7 +18,9 @@ compiler:
   - arm-linux-gnueabi-gcc-5
   - arm-linux-gnueabi-gcc-6
   - arm-linux-gnueabi-gcc-7
- # - arm-linux-gnueabi-gcc-8 
+ # - arm-linux-gnueabi-gcc-8
+ # - arm-linux-gnueabi-gcc-9
+ # - arm-linux-gnueabi-gcc-10
 
 env:
   global:
@@ -32,7 +34,7 @@ env:
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341-DSX
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341G-DSX
     - CPS_SDK_PRODUCT_TYPE=CPS-MCS341Q-DSX
-    #- CPS_SDK_PRODUCT_TYPE=CPS-MCS341G5-DSX
+    - CPS_SDK_PRODUCT_TYPE=CPS-MCS341G5-DSX
 
 # addons:
   # coverity_scan:
@@ -40,7 +42,7 @@ env:
     # ** specific to your project **
     # project:
       # name: "CONPROSYS/LINUX-SDK_driver"
-      # version: "1.6.0.0"
+      # version: "1.6.1.0"
       # description: "driver"
 
     # Where email notification of build analysis results will be sent
