@@ -227,15 +227,17 @@ unsigned long cpsssi_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 		cpsssi_read_eeprom( dev, cate, num, &chkVal );
 //		chkVal = contec_mcs341_device_extension_value_get(dev ,cate,  num );
 		contec_cps_micro_sleep( 1 );
-		if( count > 5 ){
-			return 1;
-		}
-		else count++;
 
 		DEBUG_CPSSSI_EEPROM(KERN_INFO" %d, %x :: %x \n", dev, val , chkVal );  
 
-	}while( chkVal != val );
-	return 0;
+		if( chkVal == val ){
+			return 0;
+		}
+		else count++;
+
+
+	}while(  count <= 5 );
+	return 1;
 }
 
 /**

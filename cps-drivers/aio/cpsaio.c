@@ -972,15 +972,16 @@ unsigned long cpsaio_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 		cpsaio_read_eeprom( dev, cate, num, &chkVal );
 //		chkVal = contec_mcs341_device_extension_value_get(dev ,cate,  num );
 		contec_cps_micro_sleep( 1 );
-		if( count > 5 ){
-			return 1;
-		}
-		else count++;
 
 		DEBUG_CPSAIO_EEPROM(KERN_INFO"cpsaio_write_eeprom() %d, %x :: %x \n", dev, val , chkVal );  
 
-	}while( chkVal != val );
-	return 0;
+		if( chkVal == val ){
+			return 0;
+		}
+		else count++;
+
+	}while( count <= 5 );
+	return 1;
 }
 
 /**
