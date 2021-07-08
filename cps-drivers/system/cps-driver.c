@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.2.3
+ * Version 1.2.4
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.2.3"
+#define DRV_VERSION	"1.2.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS BASE Driver");
@@ -184,6 +184,11 @@ static unsigned int ledState[CPS_MCS341_MAX_LED_ARRAY_NUM] ={0};
 static unsigned int reset_button_check_mode = 0;///< gpio-87 test mode ( 1...Enable, 0... Disable )
 module_param(reset_button_check_mode, uint, 0644 );
 MODULE_PARM_DESC(reset_button_check_mode, "Reset Button changes GPIO Mode.( 1:Enable 0:Disable )");
+
+// 2021.07.06 reset button is checking shutdown. 
+static unsigned char push_reset_button_shutdown_enable = 0;
+module_param(push_reset_button_shutdown_enable, uint, 0644 );
+MODULE_PARM_DESC(push_reset_button_shutdown_enable, "Push Reset Button,enabled shutdown. (0: Disable 1:Enable) reset_button_check_mode enable only.");
 
 // 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add (Ver.1.0.7)
 static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
@@ -1891,7 +1896,9 @@ void mcs341_controller_timer_function(unsigned long arg)
 			}
 		}else{
 			if( reset_count > 0 ){
-				orderly_poweroff(false);
+				if( push_reset_button_shutdown_enable ){
+					orderly_poweroff(false);
+				}
 			}
 			reset_count = 0;
 		}
