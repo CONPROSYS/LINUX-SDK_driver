@@ -190,6 +190,11 @@ static unsigned char push_reset_button_shutdown_enable = 0;
 module_param(push_reset_button_shutdown_enable, uint, 0644 );
 MODULE_PARM_DESC(push_reset_button_shutdown_enable, "Push Reset Button,enabled shutdown. (0: Disable 1:Enable) reset_button_check_mode enable only.");
 
+// 2021.07.06 Auto Recovery Stackbus mode. 
+static unsigned char auto_recovery_stackbus_mode_enable = 0;
+module_param(auto_recovery_stackbus_mode_enable , uint, 0644 );
+MODULE_PARM_DESC(auto_recovery_stackbus_mode_enable , "Auto Recovery Stackbus mode enable. (0: Disable 1:Enable)");
+
 // 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add (Ver.1.0.7)
 static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
 module_param(child_unit, uint, 0644 );
@@ -1905,95 +1910,97 @@ void mcs341_controller_timer_function(unsigned long arg)
 	}
 
 	// /* Ver 1.0.14 Do not run without shutdown sequence. */
-	// if( !shutdown_sequence ){
-	// 	if( mcs341_stackbus_failed_count <= mcs341_stackbus_failed_max ){ 
-	// 		// Ver 1.2.3 Device Bus Reset in timer function
-	// 		if( bus_reseting_state > 0 ){
-	// 			switch ( bus_reseting_state ){
-	// 				case 1:
-	// 					if( fpga_ver > 1 ){
-	// 						// LVDS OFF
-	// 						mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
-	// 						contec_mcs341_controller_setFpgaResetReg();
+	if( !shutdown_sequence ){
+		if( auto_recovery_stackbus_mode_enable ){
+			if( mcs341_stackbus_failed_count <= mcs341_stackbus_failed_max ){ 
+				// Ver 1.2.3 Device Bus Reset in timer function
+				if( bus_reseting_state > 0 ){
+					switch ( bus_reseting_state ){
+						case 1:
+							if( fpga_ver > 1 ){
+								// LVDS OFF
+								mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
+								contec_mcs341_controller_setFpgaResetReg();
 
-	// 						// INTERRUPT LINE OFF
-	// 						mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
-	// 						contec_mcs341_controller_setSystemInit();
-	// 					}
+								// INTERRUPT LINE OFF
+								mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
+								contec_mcs341_controller_setSystemInit();
+							}
 
-	// 					gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 0);
-	// 					bus_reseting_state = 2;
-	// 					break;
-	// 				case 2:
-	// 				case 4:
-	// 					if( bus_reseting_count == 0 ){
-	// 						if( bus_reseting_state == 2 ) 
-	// 							bus_reseting_time = 2; // 2sec
-	// 						else 
-	// 							bus_reseting_time = 1; // 1sec
+							gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 0);
+							bus_reseting_state = 2;
+							break;
+						case 2:
+						case 4:
+							if( bus_reseting_count == 0 ){
+								if( bus_reseting_state == 2 ) 
+									bus_reseting_time = 2; // 2sec
+								else 
+									bus_reseting_time = 1; // 1sec
 
-	// 						bus_reseting_count = 1;
-	// 					}
-	// 					else if (bus_reseting_count <= bus_reseting_time * 50 ){	//  Wait bus_reseting_time sec
-	// 						bus_reseting_count += 1;
-	// 					}else{
-	// 						bus_reseting_count = 0;
-	// 						if( bus_reseting_state == 4 ) 
-	// 							bus_reseting_state = 0; // bus reset end
-	// 						else
-	// 							bus_reseting_state += 1;
-	// 					}
-	// 					break;
-	// 				case 3:
-	// 					gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 1);
-	// 					bus_reseting_state = 4;
-	// 					break;
-	// 			}
+								bus_reseting_count = 1;
+							}
+							else if (bus_reseting_count <= bus_reseting_time * 50 ){	//  Wait bus_reseting_time sec
+								bus_reseting_count += 1;
+							}else{
+								bus_reseting_count = 0;
+								if( bus_reseting_state == 4 ) 
+									bus_reseting_state = 0; // bus reset end
+								else
+									bus_reseting_state += 1;
+							}
+							break;
+						case 3:
+							gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_RESET, 1);
+							bus_reseting_state = 4;
+							break;
+					}
 
-	// 		}
-	// 		else{
-	// 			if( keepcheck_count == 0 ){
-	// 				/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
-	// 				if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
-	// 					DEBUG_TIMER_FUNC_PRINT("<cps-driver>:FPGA re-init sequence!\n");
-	// 					// restarting initialize !!
-	// 					mcs341_systeminit_reg = 0;
-	// 					iRet = _contec_mcs341_controller_cpsDevicesInit( 1 );
+				}
+				else{
+					if( keepcheck_count == 0 ){
+						/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
+						if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+							DEBUG_TIMER_FUNC_PRINT("<cps-driver>:FPGA re-init sequence!\n");
+							// restarting initialize !!
+							mcs341_systeminit_reg = 0;
+							iRet = _contec_mcs341_controller_cpsDevicesInit( 1 );
 
-	// 					if ( iRet == 0 ){
-	// 						_contec_mcs341_controller_cpsChildUnitInit( child_unit, 1 );
-	// 					}
+							if ( iRet == 0 ){
+								_contec_mcs341_controller_cpsChildUnitInit( child_unit, 1 );
+							}
 
-	// 					DEBUG_TIMER_FUNC_PRINT("<cps-driver>:last status %x \n",mcs341_systeminit_reg);
-	// 				}
-	// 				else{
-	// 					// +X05 check
-	// 					if( contec_mcs341_is_alive_stack_devices() != 0 ){
-	// 						iRet = -EIO;
-	// 					}
-	// 				}
-	// 			}else{
-	// 				if( keepcheck_count >= 50 ){
-	// 					// clear keep_check_count
-	// 					keepcheck_count = -1;
-	// 				}
-	// 			}
-	// 			keepcheck_count ++;
-	// 		}
+							DEBUG_TIMER_FUNC_PRINT("<cps-driver>:last status %x \n",mcs341_systeminit_reg);
+						}
+						else{
+							// +X05 check
+							if( contec_mcs341_is_alive_stack_devices() != 0 ){
+								iRet = -EIO;
+							}
+						}
+					}else{
+						if( keepcheck_count >= 50 ){
+							// clear keep_check_count
+							keepcheck_count = -1;
+						}
+					}
+					keepcheck_count ++;
+				}
 
-	// 		if ( iRet == -EIO || iRet == -ENXIO ){ 
-	// 			bus_reseting_state = 1;
-	// 			mcs341_stackbus_failed_count++;
-	// 		}
-	// 	}
-	// 	else{
-	// 		if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] != 2 )
-	// 			ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 2;
-	// 	}
-	// }else{
-	// 		// After Shutdown /Reboot sequence
-	// 		DEBUG_TIMER_FUNC_PRINT("<cps-driver>:Do not run restart sequence!\n");
-	// }
+				if ( iRet == -EIO || iRet == -ENXIO ){ 
+					bus_reseting_state = 1;
+					mcs341_stackbus_failed_count++;
+				}
+			}
+			else{
+				if( ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] != 2 )
+					ledEnable[CPS_MCS341_ARRAYNUM_LED_ERR] = 2;
+			}
+		}//  auto_recovery_stackbus_mode_enable
+	}else{
+			// After Shutdown /Reboot sequence
+			DEBUG_TIMER_FUNC_PRINT("<cps-driver>:Do not run restart sequence!\n");
+	}
 
 	// if( watchdog_timer_msec ){
 	// 	contec_mcs341_controller_clear_watchdog();
