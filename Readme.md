@@ -82,6 +82,7 @@
 * Ver 1.6.2.0
     * cps-driver Ver.1.2.3 -> Ver.1.2.4
         * Add push_reset_button_shutdown_enable flag.
+        * Add auto_recovery_stackbus_mode_enable flag.
 
 * Ver 1.6.1.0
     * cps-driver Ver.1.2.2 -> Ver.1.2.3
