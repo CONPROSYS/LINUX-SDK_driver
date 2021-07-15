@@ -1,7 +1,7 @@
 # Driver Modules for CPS-MCS341 [![Build Status](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver.svg?branch=master)](https://travis-ci.org/CONPROSYS/LINUX-SDK_driver) [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/18149.svg)](https://scan.coverity.com/projects/conprosys-linux-sdk_driver) ![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg) 
 
 ## Features
-* Version : 1.6.1.0 (2021/03/10)
+* Version : 1.6.2.0 (2021/07/08)
 * GNU Public License Ver 2.0
 
 ## Licenses
@@ -66,7 +66,7 @@
     * ssi (Sensor Input)
         * Version 1.0.13
     * system (Base)
-        * Version 1.2.3
+        * Version 1.2.4
     * io (iolib wrapper)
         * Version 2.0.1         
     * spi/dio (Digital Input/Output)
@@ -79,6 +79,11 @@
 
 
 ## Change logs
+* Ver 1.6.2.0
+    * cps-driver Ver.1.2.3 -> Ver.1.2.4
+        * Add push_reset_button_shutdown_enable flag.
+        * Add auto_recovery_stackbus_mode_enable flag.
+
 * Ver 1.6.1.0
     * cps-driver Ver.1.2.2 -> Ver.1.2.3
         * The attribute of cps-driver adds the controller_indata.
